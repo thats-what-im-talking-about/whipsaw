@@ -31,9 +31,10 @@ object WorkItemDoc { implicit def fmt[Desc: Format] = Json.format[WorkItemDoc[De
 
 trait WorkItemDescriptor[Desc] extends ObjectDescriptor[EventId, WorkItem[Desc], WorkItemDoc[Desc]] {
   implicit def mongoContext: MongoContext
+  implicit def descFmt: Format[Desc]
 
   override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
-  override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Desc]] => WorkItem[Desc] = o => ???
+  override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Desc]] => WorkItem[Desc] = o => new MongoWorkItem(o)
 }
 
 class MongoWorkItem[Desc: Format](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Desc]])(
@@ -42,6 +43,7 @@ class MongoWorkItem[Desc: Format](protected val underlying: Either[Empty[WorkIte
   with WorkItemDescriptor[Desc]
   with WorkItem[Desc]
 {
+  override def descFmt = implicitly[Format[Desc]]
   override def runAt: Option[Instant] = obj.runAt
   override def description: Desc = obj.desc
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Desc]] = ???
@@ -52,8 +54,12 @@ class MongoWorkItems[Desc: Format](implicit executionContext: ExecutionContext, 
     with WorkItemDescriptor[Desc]
     with WorkItems[Desc]
 {
+  override def descFmt = implicitly[Format[Desc]]
   override protected def listConstraint: JsObject = Json.obj()
   override def list(q: DomainObjectGroup.Query): Future[List[WorkItem[Desc]]] = ???
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Desc]] = ???
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Desc]] = event match {
+    case evt: WorkItems.Created[Desc] =>
+      create(WorkItemDoc(_id = WorkItemId(), runAt = evt.runAt, desc = evt.desc), evt, parent)
+  }
 }

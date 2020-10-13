@@ -9,6 +9,7 @@ import play.api.libs.json.JsResult
 import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
+import play.api.libs.json.Json
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
@@ -26,6 +27,14 @@ object WorkItemId {
   }
 }
 
+/**
+  * This trait describes a single WorkItem that may be added to a Workload.
+  * WorkItems will have attributes that are generic and needed by the framework
+  * (e.g. runAt) and they will also have application specific attributes.
+  *
+  * @tparam Desc case class that contains application specific data about this
+  *              WorkItem.
+  */
 trait WorkItem[Desc] extends DomainObject[EventId, WorkItem[Desc]] {
   override type AllowedEvent = WorkItem.Event
   override type ObjectId = WorkItemId
@@ -53,4 +62,7 @@ trait WorkItems[Desc] extends DomainObjectGroup[EventId, WorkItem[Desc]] {
 
 object WorkItems {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+
+  case class Created[Desc](desc: Desc, runAt: Option[Instant] = None) extends Event
+  object Created { implicit def fmt[Desc: Format] = Json.format[Created[Desc]]}
 }
