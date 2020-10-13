@@ -10,6 +10,7 @@ import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
+import twita.dominion.api.DomainObjectGroup
 
 case class WorkloadId(value: String) extends AnyVal
 object WorkloadId {
@@ -32,5 +33,13 @@ trait Workload extends DomainObject[EventId, Workload] {
 }
 
 object Workload {
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+}
+
+trait Workloads extends DomainObjectGroup[EventId, Workload] {
+  override type AllowedEvent = Workloads.Event
+}
+
+object Workloads {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 }

@@ -9,5 +9,8 @@ publishMavenStyle := false
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation")
 
 lazy val api = project in file("api")
+lazy val impl = (project in file("impl")).dependsOn(api)
 
-lazy val root = (project in file(".")).dependsOn(api).aggregate(api)
+lazy val root = (project in file("."))
+  .dependsOn(api, impl)
+  .aggregate(api, impl)
