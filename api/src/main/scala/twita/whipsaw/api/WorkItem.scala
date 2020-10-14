@@ -63,6 +63,6 @@ trait WorkItems[Desc] extends DomainObjectGroup[EventId, WorkItem[Desc]] {
 object WorkItems {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class Created[Desc](desc: Desc, runAt: Option[Instant] = None) extends Event
-  object Created { implicit def fmt[Desc: Format] = Json.format[Created[Desc]]}
+  case class WorkItemAdded[Desc](desc: Desc, runAt: Option[Instant] = None) extends Event
+  object WorkItemAdded { implicit def fmt[Desc: Format] = Json.format[WorkItemAdded[Desc]]}
 }

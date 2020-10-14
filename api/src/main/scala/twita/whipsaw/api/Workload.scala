@@ -31,6 +31,8 @@ trait Workload extends DomainObject[EventId, Workload] {
   override type ObjectId = WorkloadId
 
   def name: String
+
+  def workItems[ItemDesc: Format]: WorkItems[ItemDesc]
 }
 
 object Workload {
