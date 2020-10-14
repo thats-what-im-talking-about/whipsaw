@@ -8,6 +8,7 @@ import play.api.libs.json.JsResult
 import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
+import play.api.libs.json.Json
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
@@ -42,4 +43,7 @@ trait Workloads extends DomainObjectGroup[EventId, Workload] {
 
 object Workloads {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+
+  case class Created(name: String) extends Event
+  object Created { implicit val fmt = Json.format[Created] }
 }

@@ -18,7 +18,7 @@ package api {
   object SampleWorkItemDesc { implicit val fmt = Json.format[SampleWorkItemDesc] }
 }
 
-class ExampleSpec extends AsyncFlatSpec with should.Matchers {
+class WorkItemSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new MongoContextImpl
   val workItems = new MongoWorkItems[api.SampleWorkItemDesc] {
     override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)

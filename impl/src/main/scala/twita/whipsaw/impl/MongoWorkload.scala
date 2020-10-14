@@ -29,7 +29,7 @@ trait WorkloadDescriptor extends ObjectDescriptor[EventId, Workload, WorkloadDoc
   implicit def mongoContext: MongoContext
 
   override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
-  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc] => Workload = o => ???
+  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc] => Workload = o => new MongoWorkload(o)
 }
 
 class MongoWorkload(protected val underlying: Either[Empty[WorkloadId], WorkloadDoc])(
@@ -50,6 +50,12 @@ class MongoWorkloads(implicit executionContext: ExecutionContext, val mongoConte
   override protected def listConstraint: JsObject = Json.obj()
   override def list(q: DomainObjectGroup.Query): Future[List[Workload]] = ???
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload] = ???
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload] = event match {
+    case evt: Workloads.Created => create(
+      WorkloadDoc(
+          _id = WorkloadId()
+        , name = evt.name
+      ), evt, parent)
+    }
 }
 
