@@ -1,4 +1,4 @@
-package twita.whipsaw.impl
+package twita.whipsaw.reactivemongo.impl
 
 import org.scalatest._
 import org.scalatest.flatspec._

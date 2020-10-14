@@ -1,7 +1,7 @@
 import Dependencies._
 
 version := whipsawVersion
-name := "whipsaw-impl"
+name := "whipsaw-reactive-mongo-impl"
 
 libraryDependencies ++= Seq(
     "twita" %% "dominion-reactive-mongo-impl" % dominionVersion
