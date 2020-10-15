@@ -26,20 +26,20 @@ object WorkloadId {
   }
 }
 
-trait Workload extends DomainObject[EventId, Workload] {
+trait Workload[Payload] extends DomainObject[EventId, Workload[Payload]] {
   override type AllowedEvent = Workload.Event
   override type ObjectId = WorkloadId
 
   def name: String
 
-  def workItems[ItemDesc: Format]: WorkItems[ItemDesc]
+  def workItems: WorkItems[Payload]
 }
 
 object Workload {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait Workloads extends DomainObjectGroup[EventId, Workload] {
+trait Workloads[Payload] extends DomainObjectGroup[EventId, Workload[Payload]] {
   override type AllowedEvent = Workloads.Event
 }
 

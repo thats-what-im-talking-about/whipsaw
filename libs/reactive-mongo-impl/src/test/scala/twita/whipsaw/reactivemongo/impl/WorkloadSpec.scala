@@ -7,12 +7,19 @@ import twita.whipsaw.api.WorkItems
 import twita.whipsaw.api.Workload
 import twita.whipsaw.api.Workloads
 
+package test {
+  import twita.dominion.impl.reactivemongo.MongoContext
+  import scala.concurrent.ExecutionContext
+
+  class SampleMongoWorkloads(implicit executionContext: ExecutionContext, mongoContext: MongoContext) extends MongoWorkloads[test.SamplePayload]
+}
+
 class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val workloads = new MongoWorkloads {
+  val workloads = new test.SampleMongoWorkloads {
     override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)
   }
-  var workload: Workload = _
+  var workload: Workload[test.SamplePayload] = _
 
   "workloads" should "be created" in {
     for {
@@ -25,10 +32,10 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
 
   "work items" should "be added to workloads via apply()" in {
     for {
-      createdItem <- workload.workItems[test.SampleWorkItemDesc].apply(
-        WorkItems.WorkItemAdded(test.SampleWorkItemDesc("bplawler@gmail.com"))
+      createdItem <- workload.workItems.apply(
+        WorkItems.WorkItemAdded(test.SamplePayload("bplawler@gmail.com"))
       )
-    } yield assert(createdItem.description.email == "bplawler@gmail.com")
+    } yield assert(createdItem.payload.email == "bplawler@gmail.com")
   }
 }
 

@@ -16,28 +16,28 @@ import scala.concurrent.Future
 package test {
   import play.api.libs.json.Json
 
-  case class SampleWorkItemDesc(
+  case class SamplePayload(
       email: String
     , touchedCount: Int = 0
   )
-  object SampleWorkItemDesc { implicit val fmt = Json.format[SampleWorkItemDesc] }
+  object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
 }
 
 class WorkItemSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val workItems = new MongoWorkItems[test.SampleWorkItemDesc](new Workload {
+  val workItems = new MongoWorkItems(new Workload[test.SamplePayload] {
     override def name: String = "Dummy Workload"
     override def id: WorkloadId = WorkloadId("dummy-workload-id")
-    override def workItems[ItemDesc: Format]: WorkItems[ItemDesc] = ???
-    override def apply(event: Workload.Event, parent: Option[BaseEvent[EventId]]): Future[Workload] = ???
+    override def workItems: WorkItems[test.SamplePayload] = ???
+    override def apply(event: Workload.Event, parent: Option[BaseEvent[EventId]]): Future[Workload[test.SamplePayload]] = ???
   }) {
     override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)
   }
 
   "workItems" should "be created" in {
     for {
-      createdItem <- workItems(WorkItems.WorkItemAdded(test.SampleWorkItemDesc("bplawler@gmail.com")))
-    } yield assert(createdItem.description.email == "bplawler@gmail.com")
+      createdItem <- workItems(WorkItems.WorkItemAdded(test.SamplePayload("bplawler@gmail.com")))
+    } yield assert(createdItem.payload.email == "bplawler@gmail.com")
   }
 }
 

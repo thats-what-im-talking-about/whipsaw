@@ -24,46 +24,46 @@ import twita.whipsaw.api.WorkloadId
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-case class WorkItemDoc[Desc] (
+case class WorkItemDoc[Payload] (
     _id: WorkItemId
   , workloadId: WorkloadId
-  , desc: Desc
+  , payload: Payload
   , runAt: Option[Instant] = None
 ) extends BaseDoc[WorkItemId]
-object WorkItemDoc { implicit def fmt[Desc: Format] = Json.format[WorkItemDoc[Desc]] }
+object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]] }
 
-trait WorkItemDescriptor[Desc] extends ObjectDescriptor[EventId, WorkItem[Desc], WorkItemDoc[Desc]] {
+trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Payload], WorkItemDoc[Payload]] {
   implicit def mongoContext: MongoContext
-  implicit def descFmt: Format[Desc]
-  protected def workload: Workload
+  implicit def descFmt: Format[Payload]
+  protected def workload: Workload[Payload]
 
   override protected lazy val objCollectionFt: Future[JSONCollection] = mongoContext.getCollection(s"workloads.${workload.id.value}")
-  override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Desc]] => WorkItem[Desc] = o => new MongoWorkItem(o, workload)
+  override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Payload]] => WorkItem[Payload] = o => new MongoWorkItem(o, workload)
 }
 
-class MongoWorkItem[Desc: Format](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Desc]], protected val workload: Workload)(
+class MongoWorkItem[Payload: Format](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload])(
   implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
-) extends ReactiveMongoObject[EventId, WorkItem[Desc], WorkItemDoc[Desc]]
-  with WorkItemDescriptor[Desc]
-  with WorkItem[Desc]
+) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
+  with WorkItemDescriptor[Payload]
+  with WorkItem[Payload]
 {
-  override def descFmt = implicitly[Format[Desc]]
+  override def descFmt = implicitly[Format[Payload]]
   override def runAt: Option[Instant] = obj.runAt
-  override def description: Desc = obj.desc
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Desc]] = ???
+  override def payload: Payload = obj.payload
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = ???
 }
 
-class MongoWorkItems[Desc: Format](protected val workload: Workload)(implicit executionContext: ExecutionContext, val mongoContext: MongoContext)
-  extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Desc], WorkItemDoc[Desc]]
-    with WorkItemDescriptor[Desc]
-    with WorkItems[Desc]
+class MongoWorkItems[Payload: Format](protected val workload: Workload[Payload])(implicit executionContext: ExecutionContext, val mongoContext: MongoContext)
+  extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
+    with WorkItemDescriptor[Payload]
+    with WorkItems[Payload]
 {
-  override def descFmt = implicitly[Format[Desc]]
+  override def descFmt = implicitly[Format[Payload]]
   override protected def listConstraint: JsObject = Json.obj()
-  override def list(q: DomainObjectGroup.Query): Future[List[WorkItem[Desc]]] = ???
+  override def list(q: DomainObjectGroup.Query): Future[List[WorkItem[Payload]]] = ???
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Desc]] = event match {
-    case evt: WorkItems.WorkItemAdded[Desc] =>
-      create(WorkItemDoc(_id = WorkItemId(), workloadId = workload.id, runAt = evt.runAt, desc = evt.desc), evt, parent)
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = event match {
+    case evt: WorkItems.WorkItemAdded[Payload] =>
+      create(WorkItemDoc(_id = WorkItemId(), workloadId = workload.id, runAt = evt.runAt, payload = evt.payload), evt, parent)
   }
 }

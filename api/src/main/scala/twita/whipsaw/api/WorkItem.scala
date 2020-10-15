@@ -32,10 +32,10 @@ object WorkItemId {
   * WorkItems will have attributes that are generic and needed by the framework
   * (e.g. runAt) and they will also have application specific attributes.
   *
-  * @tparam Desc case class that contains application specific data about this
+  * @tparam Payload case class that contains application specific data about this
   *              WorkItem.
   */
-trait WorkItem[Desc] extends DomainObject[EventId, WorkItem[Desc]] {
+trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   override type AllowedEvent = WorkItem.Event
   override type ObjectId = WorkItemId
 
@@ -49,20 +49,20 @@ trait WorkItem[Desc] extends DomainObject[EventId, WorkItem[Desc]] {
   /**
     * @return Implementer-provided description of this work item.
     */
-  def description: Desc
+  def payload: Payload
 }
 
 object WorkItem {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait WorkItems[Desc] extends DomainObjectGroup[EventId, WorkItem[Desc]] {
+trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
   override type AllowedEvent = WorkItems.Event
 }
 
 object WorkItems {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class WorkItemAdded[Desc](desc: Desc, runAt: Option[Instant] = Some(Instant.now())) extends Event
-  object WorkItemAdded { implicit def fmt[Desc: Format] = Json.format[WorkItemAdded[Desc]]}
+  case class WorkItemAdded[Payload](payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
+  object WorkItemAdded { implicit def fmt[Payload: Format] = Json.format[WorkItemAdded[Payload]]}
 }

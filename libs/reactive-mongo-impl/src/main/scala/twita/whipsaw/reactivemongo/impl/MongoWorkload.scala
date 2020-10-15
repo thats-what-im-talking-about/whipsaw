@@ -27,35 +27,36 @@ case class WorkloadDoc(
 ) extends BaseDoc[WorkloadId]
 object WorkloadDoc { implicit val fmt = Json.format[WorkloadDoc] }
 
-trait WorkloadDescriptor extends ObjectDescriptor[EventId, Workload, WorkloadDoc] {
+trait WorkloadDescriptor[Payload] extends ObjectDescriptor[EventId, Workload[Payload], WorkloadDoc] {
   implicit def mongoContext: MongoContext
+  implicit def payloadFmt: Format[Payload]
 
   override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
-  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc] => Workload = o => new MongoWorkload(o)
+  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc] => Workload[Payload] = o => new MongoWorkload[Payload](o)
 }
 
-class MongoWorkload(protected val underlying: Either[Empty[WorkloadId], WorkloadDoc])(
-  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
-) extends ReactiveMongoObject[EventId, Workload, WorkloadDoc]
-  with WorkloadDescriptor
-  with Workload
+class MongoWorkload[Payload](protected val underlying: Either[Empty[WorkloadId], WorkloadDoc])(
+  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext, val payloadFmt: Format[Payload]
+) extends ReactiveMongoObject[EventId, Workload[Payload], WorkloadDoc]
+  with WorkloadDescriptor[Payload]
+  with Workload[Payload]
 {
   override def name: String = obj.name
 
-  override def workItems[ItemDesc: Format]: WorkItems[ItemDesc] = new MongoWorkItems[ItemDesc](this)
+  override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload] = ???
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload]] = ???
 }
 
-class MongoWorkloads(implicit executionContext: ExecutionContext, val mongoContext: MongoContext)
-  extends ReactiveMongoDomainObjectGroup[EventId, Workload, WorkloadDoc]
-    with WorkloadDescriptor
-    with Workloads
+class MongoWorkloads[Payload](implicit executionContext: ExecutionContext, val mongoContext: MongoContext, val payloadFmt: Format[Payload])
+  extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload], WorkloadDoc]
+    with WorkloadDescriptor[Payload]
+    with Workloads[Payload]
 {
   override protected def listConstraint: JsObject = Json.obj()
-  override def list(q: DomainObjectGroup.Query): Future[List[Workload]] = ???
+  override def list(q: DomainObjectGroup.Query): Future[List[Workload[Payload]]] = ???
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload] = event match {
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload]] = event match {
     case evt: Workloads.Created => create(
       WorkloadDoc(
           _id = WorkloadId()
