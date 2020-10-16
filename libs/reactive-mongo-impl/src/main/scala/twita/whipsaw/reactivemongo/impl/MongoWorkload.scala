@@ -24,6 +24,7 @@ import scala.concurrent.Future
 case class WorkloadDoc(
     _id: WorkloadId
   , name: String
+  , factoryType: String
 ) extends BaseDoc[WorkloadId]
 object WorkloadDoc { implicit val fmt = Json.format[WorkloadDoc] }
 
@@ -43,6 +44,8 @@ class MongoWorkload[Payload](protected val underlying: Either[Empty[WorkloadId],
 {
   override def name: String = obj.name
 
+  override def factoryType: String = obj.factoryType
+
   override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload]] = ???
@@ -61,6 +64,7 @@ class MongoWorkloads[Payload](implicit executionContext: ExecutionContext, val m
       WorkloadDoc(
           _id = WorkloadId()
         , name = evt.name
+        , factoryType = this.getClass.getName
       ), evt, parent)
     }
 }

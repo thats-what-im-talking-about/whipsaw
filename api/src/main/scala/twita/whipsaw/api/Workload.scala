@@ -2,6 +2,7 @@ package twita.whipsaw.api
 
 import java.util.UUID
 
+import enumeratum.EnumEntry
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
 import play.api.libs.json.JsResult
@@ -31,6 +32,7 @@ trait Workload[Payload] extends DomainObject[EventId, Workload[Payload]] {
   override type ObjectId = WorkloadId
 
   def name: String
+  def factoryType: String
 
   def workItems: WorkItems[Payload]
 }

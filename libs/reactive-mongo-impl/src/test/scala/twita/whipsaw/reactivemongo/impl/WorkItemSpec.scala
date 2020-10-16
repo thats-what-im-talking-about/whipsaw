@@ -26,6 +26,7 @@ package test {
 class WorkItemSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
   val workItems = new MongoWorkItems(new Workload[test.SamplePayload] {
+    override def factoryType: String = "dummy.workload"
     override def name: String = "Dummy Workload"
     override def id: WorkloadId = WorkloadId("dummy-workload-id")
     override def workItems: WorkItems[test.SamplePayload] = ???
