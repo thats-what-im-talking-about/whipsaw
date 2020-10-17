@@ -13,6 +13,9 @@ import play.api.libs.json.Json
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.dominion.api.DomainObjectGroup.Query
+
+import scala.concurrent.Future
 
 case class WorkItemId(value: String) extends AnyVal
 object WorkItemId {
@@ -54,15 +57,25 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
 
 object WorkItem {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+
+  case class Processed[Payload](newPayload: Payload, result: ItemResult) extends Event
+  object Processed { implicit def fmt[Payload: Format] = Json.format[Processed[Payload]] }
 }
 
 trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
   override type AllowedEvent = WorkItems.Event
+
+  /**
+    * @return Eventually returns a list of items whose runAt is in the past.
+    */
+  def runnableItemList: Future[List[WorkItem[Payload]]]
 }
 
 object WorkItems {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class WorkItemAdded[Payload](payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
-  object WorkItemAdded { implicit def fmt[Payload: Format] = Json.format[WorkItemAdded[Payload]]}
+  object WorkItemAdded { implicit def fmt[Payload: Format] = Json.format[WorkItemAdded[Payload]] }
+
+  case class RunnableAt(runAt: Instant = Instant.now) extends Query
 }

@@ -18,6 +18,7 @@ package test {
 
   case class SamplePayload(
       email: String
+    , target: String
     , touchedCount: Int = 0
   )
   object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
@@ -31,13 +32,11 @@ class WorkItemSpec extends AsyncFlatSpec with should.Matchers {
     override def id: WorkloadId = WorkloadId("dummy-workload-id")
     override def workItems: WorkItems[test.SamplePayload] = ???
     override def apply(event: Workload.Event, parent: Option[BaseEvent[EventId]]): Future[Workload[test.SamplePayload]] = ???
-  }) {
-    override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)
-  }
+  })
 
   "workItems" should "be created" in {
     for {
-      createdItem <- workItems(WorkItems.WorkItemAdded(test.SamplePayload("bplawler@gmail.com")))
+      createdItem <- workItems(WorkItems.WorkItemAdded(test.SamplePayload("bplawler@gmail.com", "string to process")))
     } yield assert(createdItem.payload.email == "bplawler@gmail.com")
   }
 }

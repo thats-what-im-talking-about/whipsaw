@@ -14,6 +14,8 @@ import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 
+import scala.concurrent.Future
+
 case class WorkloadId(value: String) extends AnyVal
 object WorkloadId {
   def apply(): WorkloadId = WorkloadId(UUID.randomUUID().toString)
@@ -43,6 +45,8 @@ object Workload {
 
 trait Workloads[Payload] extends DomainObjectGroup[EventId, Workload[Payload]] {
   override type AllowedEvent = Workloads.Event
+
+  def process(id: WorkloadId, engine: WorkloadEngine[Payload]): Future[Unit]
 }
 
 object Workloads {
