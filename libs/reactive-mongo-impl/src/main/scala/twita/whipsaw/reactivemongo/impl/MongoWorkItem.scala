@@ -37,7 +37,7 @@ object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc
 trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Payload], WorkItemDoc[Payload]] {
   implicit def mongoContext: MongoContext
   implicit def payloadFmt: OFormat[Payload]
-  protected def workload: Workload[Payload]
+  protected def workload: Workload[Payload, _, _, _, _]
 
   override protected lazy val objCollectionFt: Future[JSONCollection] = mongoContext.getCollection(s"workloads.${workload.id.value}")
   override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Payload]] => WorkItem[Payload] = o => new MongoWorkItem(o, workload)
@@ -45,7 +45,7 @@ trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Pay
   override lazy val eventLogger = new MongoObjectEventStackLogger(50)
 }
 
-class MongoWorkItem[Payload](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload])(
+class MongoWorkItem[Payload](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload, _, _, _, _])(
   implicit executionContext: ExecutionContext, override val mongoContext: MongoContext, override val payloadFmt: OFormat[Payload]
 ) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
   with WorkItemDescriptor[Payload]
@@ -66,7 +66,7 @@ class MongoWorkItem[Payload](protected val underlying: Either[Empty[WorkItemId],
   }
 }
 
-class MongoWorkItems[Payload](protected val workload: Workload[Payload])(
+class MongoWorkItems[Payload](protected val workload: Workload[Payload, _, _, _, _])(
   implicit executionContext: ExecutionContext, val mongoContext: MongoContext, override val payloadFmt: OFormat[Payload]
 )
   extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Payload], WorkItemDoc[Payload]]

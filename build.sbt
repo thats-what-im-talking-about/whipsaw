@@ -6,7 +6,11 @@ name := "whipsaw"
 
 publishMavenStyle := false
 
-scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation")
+scalacOptions in ThisBuild ++= Seq(
+    "-unchecked"
+  , "-deprecation"
+  //, "-language:higherKinds"
+)
 
 lazy val api = project in file("api")
 lazy val `reactive-mongo-impl` = (project in file("libs/reactive-mongo-impl")).dependsOn(api)

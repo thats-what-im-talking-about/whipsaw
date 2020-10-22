@@ -15,12 +15,13 @@ import scala.concurrent.Future
 
 package test {
   import play.api.libs.json.Json
+  import twita.whipsaw.api.WorkItemPayload
 
   case class SamplePayload(
       email: String
     , target: String
     , touchedCount: Int = 0
-  )
+  ) extends WorkItemPayload
   object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
 }
 
