@@ -23,7 +23,7 @@ trait ScheduleCompletion
   * duplicate workItems be scheduled.
   */
 trait WorkloadScheduler[Payload] {
-  def schedule(payloads: Iterator[Payload]): Future[ScheduleCompletion]
+  def schedule(): Iterator[Payload]
 }
 
 trait RegisteredScheduler[SParams, Payload] {

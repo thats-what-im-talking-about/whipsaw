@@ -96,9 +96,9 @@ object Workloads {
 
   case class Created[
       SParams: OFormat
-    , RS <: RegisteredScheduler[SParams, _]: OFormat
+    , RS <: RegisteredScheduler[SParams, _]: Format
     , PParams: OFormat
-    , RP <: RegisteredProcessor[PParams, _]: OFormat
+    , RP <: RegisteredProcessor[PParams, _]: Format
   ](
     name: String, scheduler: RS, schedulerParams: SParams, processor: RP, processorParams: PParams
   ) extends Event {

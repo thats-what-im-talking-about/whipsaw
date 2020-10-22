@@ -31,9 +31,9 @@ import scala.concurrent.Future
 
 case class WorkloadDoc[
     SParams: OFormat
-  , RS <: RegisteredScheduler[SParams, _]: OFormat
+  , RS <: RegisteredScheduler[SParams, _]: Format
   , PParams: OFormat
-  , RP <: RegisteredProcessor[PParams, _]: OFormat
+  , RP <: RegisteredProcessor[PParams, _]: Format
 ](
     _id: WorkloadId
   , name: String
@@ -46,9 +46,9 @@ case class WorkloadDoc[
 object WorkloadDoc {
   implicit def fmt [
       SParams: OFormat
-    , RS <: RegisteredScheduler[SParams, _]: OFormat
+    , RS <: RegisteredScheduler[SParams, _]: Format
     , PParams: OFormat
-    , RP <: RegisteredProcessor[PParams, _]: OFormat
+    , RP <: RegisteredProcessor[PParams, _]: Format
   ] = Json.format[WorkloadDoc[SParams, RS, PParams, RP]]
 }
 
@@ -63,9 +63,9 @@ extends ObjectDescriptor[EventId, Workload[Payload, SParams, RS, PParams, RP], W
   implicit def mongoContext: MongoContext
   implicit def payloadFmt: OFormat[Payload]
   implicit def sParamsFmt: OFormat[SParams]
-  implicit def schedulerFmt: OFormat[RS]
+  implicit def schedulerFmt: Format[RS]
   implicit def pParamsFmt: OFormat[PParams]
-  implicit def processorFmt: OFormat[RP]
+  implicit def processorFmt: Format[RP]
 
   override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
   override protected def cons: Either[Empty[WorkloadId], WorkloadDoc[SParams, RS, PParams, RP]] => Workload[Payload, SParams, RS, PParams, RP] = {
@@ -84,9 +84,9 @@ class MongoWorkload[
          , override val mongoContext: MongoContext
          , override val payloadFmt: OFormat[Payload]
          , override val sParamsFmt: OFormat[SParams]
-         , override val schedulerFmt: OFormat[RS]
+         , override val schedulerFmt: Format[RS]
          , override val pParamsFmt: OFormat[PParams]
-         , override val processorFmt: OFormat[RP])
+         , override val processorFmt: Format[RP])
 extends ReactiveMongoObject[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
   with WorkloadDescriptor[Payload, SParams, RS, PParams, RP]
   with Workload[Payload, SParams, RS, PParams, RP]
@@ -113,9 +113,9 @@ class MongoWorkloads[
          , val mongoContext: MongoContext
          , override val payloadFmt: OFormat[Payload]
          , override val sParamsFmt: OFormat[SParams]
-         , override val schedulerFmt: OFormat[RS]
+         , override val schedulerFmt: Format[RS]
          , override val pParamsFmt: OFormat[PParams]
-         , override val processorFmt: OFormat[RP]
+         , override val processorFmt: Format[RP]
 )
 extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
   with WorkloadDescriptor[Payload, SParams, RS, PParams, RP]
