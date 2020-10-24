@@ -33,6 +33,6 @@ trait WorkItemProcessor[Payload] {
   def process(payload: Payload): Future[(ItemResult, Payload)]
 }
 
-trait RegisteredProcessor[PParams, Payload] {
-  def withParams(p: PParams): WorkItemProcessor[Payload]
+trait RegisteredProcessor {
+  def apply(params: Any): WorkItemProcessor[_]
 }

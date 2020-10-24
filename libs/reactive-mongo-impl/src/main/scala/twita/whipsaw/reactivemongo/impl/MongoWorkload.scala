@@ -30,10 +30,8 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 case class WorkloadDoc[
-    SParams: OFormat
-  , RS <: RegisteredScheduler[SParams, _]: Format
-  , PParams: OFormat
-  , RP <: RegisteredProcessor[PParams, _]: Format
+    SParams: OFormat, RS <: RegisteredScheduler: Format
+  , PParams: OFormat, RP <: RegisteredProcessor: Format
 ](
     _id: WorkloadId
   , name: String
@@ -45,19 +43,15 @@ case class WorkloadDoc[
 
 object WorkloadDoc {
   implicit def fmt [
-      SParams: OFormat
-    , RS <: RegisteredScheduler[SParams, _]: Format
-    , PParams: OFormat
-    , RP <: RegisteredProcessor[PParams, _]: Format
+      SParams: OFormat, RS <: RegisteredScheduler: Format
+    , PParams: OFormat, RP <: RegisteredProcessor: Format
   ] = Json.format[WorkloadDoc[SParams, RS, PParams, RP]]
 }
 
 trait WorkloadDescriptor[
     Payload
-  , SParams
-  , RS <: RegisteredScheduler[SParams, Payload]
-  , PParams
-  , RP <: RegisteredProcessor[PParams, Payload]]
+  , SParams, RS <: RegisteredScheduler
+  , PParams, RP <: RegisteredProcessor]
 extends ObjectDescriptor[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
 {
   implicit def mongoContext: MongoContext
@@ -75,10 +69,8 @@ extends ObjectDescriptor[EventId, Workload[Payload, SParams, RS, PParams, RP], W
 
 class MongoWorkload[
     Payload
-  , SParams
-  , RS <: RegisteredScheduler[SParams, Payload]
-  , PParams
-  , RP <: RegisteredProcessor[PParams, Payload]
+  , SParams, RS <: RegisteredScheduler
+  , PParams, RP <: RegisteredProcessor
 ](protected val underlying: Either[Empty[WorkloadId], WorkloadDoc[SParams, RS, PParams, RP]]
 )(implicit executionContext: ExecutionContext
          , override val mongoContext: MongoContext
@@ -95,19 +87,17 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, RS, PParams, RP]
 
   override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
-  override def scheduler: WorkloadScheduler[Payload] = obj.scheduler.withParams(obj.schedulerParams)
+  override def scheduler: WorkloadScheduler[Payload] = obj.scheduler(obj.schedulerParams).asInstanceOf[WorkloadScheduler[Payload]]
 
-  override def processor: WorkItemProcessor[Payload] = obj.processor.withParams(obj.processorParams)
+  override def processor: WorkItemProcessor[Payload] = obj.processor(obj.processorParams).asInstanceOf[WorkItemProcessor[Payload]]
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, RS, PParams, RP]] = ???
 }
 
 class MongoWorkloads[
     Payload
-  , SParams
-  , RS <: RegisteredScheduler[SParams, Payload]
-  , PParams
-  , RP <: RegisteredProcessor[PParams, Payload]
+  , SParams, RS <: RegisteredScheduler
+  , PParams, RP <: RegisteredProcessor
 ](
   implicit executionContext: ExecutionContext
          , val mongoContext: MongoContext

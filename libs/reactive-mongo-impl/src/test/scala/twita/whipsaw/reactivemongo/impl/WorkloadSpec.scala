@@ -5,9 +5,9 @@ import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.api.ItemResult
-import twita.whipsaw.api.RegisteredScheduler
+import twita.whipsaw.api.WorkItem.Processed
 import twita.whipsaw.api.WorkItemProcessor
-import twita.whipsaw.api.WorkItems
+import twita.whipsaw.api.WorkItems.WorkItemAdded
 import twita.whipsaw.api.WorkloadId
 import twita.whipsaw.api.Workloads
 import twita.whipsaw.reactivemongo.impl.testapp.ProcessorRegistryEntry
@@ -19,18 +19,10 @@ import scala.concurrent.Future
 
 package testapp {
   import enumeratum._
-  import play.api.libs.json.Format
-  import play.api.libs.json.JsObject
-  import play.api.libs.json.JsResult
-  import play.api.libs.json.JsString
-  import play.api.libs.json.JsSuccess
-  import play.api.libs.json.JsValue
   import play.api.libs.json.Json
-  import play.api.libs.json.OFormat
   import twita.dominion.impl.reactivemongo.MongoContext
   import twita.whipsaw.api.RegisteredProcessor
   import twita.whipsaw.api.RegisteredScheduler
-  import twita.whipsaw.api.ScheduleCompletion
   import twita.whipsaw.api.WorkloadScheduler
 
   import scala.concurrent.ExecutionContext
@@ -48,7 +40,7 @@ package testapp {
 
   // create a scheduler
   class SampleWorkloadScheduler(p: SampleSchedulerParams) extends WorkloadScheduler[SamplePayload] {
-    override def schedule(): Iterator[SamplePayload] = Range(1, p.numItems).iterator.map { index =>
+    override def schedule(): Iterator[SamplePayload] = Range(0, p.numItems).iterator.map { index =>
       SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
     }
   }
@@ -61,45 +53,45 @@ package testapp {
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends WorkItemProcessor[SamplePayload] {
     override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] =
       Future.successful((
-        ItemResult.Done, payload.copy(target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase())
+        ItemResult.Done, payload.copy(
+            target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
+          , touchedCount = payload.touchedCount + 1
+        )
       ))
   }
 
   // Create a Workload Processor Registry
-  sealed trait ProcessorRegistryEntry[PParams, Payload] extends EnumEntry with RegisteredProcessor[PParams, Payload]
-  object ProcessorRegistryEntry extends Enum[ProcessorRegistryEntry[_, _]] with PlayJsonEnum[ProcessorRegistryEntry[_, _]] {
+  sealed trait ProcessorRegistryEntry extends EnumEntry with RegisteredProcessor
+  object ProcessorRegistryEntry extends Enum[ProcessorRegistryEntry] with PlayJsonEnum[ProcessorRegistryEntry] {
     override val values = findValues
 
-    case class Sample() extends ProcessorRegistryEntry[SampleProcessorParams, SamplePayload] {
-      override def withParams(p: SampleProcessorParams): WorkItemProcessor[SamplePayload] = new SampleWorkItemProcessor(p)
-    }
-    object Sample { implicit val fmt = new Format[Sample] {
-      override def writes(o: Sample): JsValue = JsString(o.entryName)
-      override def reads(json: JsValue): JsResult[Sample] = json match {
-        case JsString(str) => JsSuccess(Sample())
+    case object Sample extends ProcessorRegistryEntry {
+      override def apply(params: Any): WorkItemProcessor[_] = params match {
+        case p: SampleProcessorParams => new SampleWorkItemProcessor(p)
       }
-    }}
+    }
   }
 
   // Create a Workload Scheduler Registry
-  sealed trait SchedulerRegistryEntry[SParams, Payload] extends EnumEntry with RegisteredScheduler[SParams, Payload]
-  object SchedulerRegistryEntry extends Enum[SchedulerRegistryEntry[_,_]] with PlayJsonEnum[SchedulerRegistryEntry[_,_]] {
+  sealed trait SchedulerRegistryEntry extends EnumEntry with RegisteredScheduler
+  object SchedulerRegistryEntry extends Enum[SchedulerRegistryEntry] with PlayJsonEnum[SchedulerRegistryEntry] {
     override val values = findValues
 
-    case class Sample() extends SchedulerRegistryEntry[SampleSchedulerParams, SamplePayload] {
-      override def withParams(p: SampleSchedulerParams): WorkloadScheduler[SamplePayload] = new SampleWorkloadScheduler(p)
-    }
-    object Sample { implicit val fmt = new Format[Sample] {
-      override def writes(o: Sample): JsValue = JsString(o.entryName)
-      override def reads(json: JsValue): JsResult[Sample] = json match {
-        case JsString(str) => JsSuccess(Sample())
+    case object Sample extends SchedulerRegistryEntry {
+      override def apply(params: Any): WorkloadScheduler[SamplePayload] = params match {
+        case p: SampleSchedulerParams => new SampleWorkloadScheduler(p)
       }
-    }}
+    }
   }
 
   // create a workload factory out of these types
   class SampleMongoWorkloadFactory(implicit executionContext: ExecutionContext, mongoContext: MongoContext)
-    extends MongoWorkloads[SamplePayload, SampleSchedulerParams, SchedulerRegistryEntry.Sample, SampleProcessorParams, ProcessorRegistryEntry.Sample] {
+    extends MongoWorkloads[
+        SamplePayload
+      , SampleSchedulerParams
+      , SchedulerRegistryEntry
+      , SampleProcessorParams
+      , ProcessorRegistryEntry] {
     override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)
   }
 }
@@ -114,9 +106,9 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
       createdWorkload <- workloadFactory(
         Workloads.Created(
             name = "Sample Workload"
-          , scheduler = SchedulerRegistryEntry.Sample()
+          , scheduler = SchedulerRegistryEntry.Sample: SchedulerRegistryEntry
           , schedulerParams = SampleSchedulerParams(10)
-          , processor = ProcessorRegistryEntry.Sample()
+          , processor = ProcessorRegistryEntry.Sample: ProcessorRegistryEntry
           , processorParams = SampleProcessorParams("PrOcEsSeD")
         )
       )
@@ -126,29 +118,30 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
     }
   }
 
-  //def foo[Payload](factory: MongoWorkloads[_], )
-  /*
-  "work items" should "be added to workloads via apply()" in {
-    val factory = new test.SampleMongoWorkloadFactory()
+  "work items" should "be scheduled properly with the workload scheduler" in {
+    val factory = new testapp.SampleMongoWorkloadFactory()
     for {
       workload <- factory.get(DomainObjectGroup.byId(workloadId))
-      createdItem <- workload.get.workItems(
-        WorkItems.WorkItemAdded(test.SamplePayload("bplawler@gmail.com", "string to be processed"))
-      )
-    } yield assert(createdItem.id != null)
+      scheduler = workload.get.scheduler
+      items = scheduler.schedule().toList
+      addedItems <- Future.traverse(items) {item => workload.get.workItems(WorkItemAdded(item))}
+    } yield assert(addedItems.size == 10)
   }
 
   "workload processing" should "process the runnable workload" in {
-    val workloadFactory = new test.SampleMongoWorkloadFactory
+    val workloadFactory = new testapp.SampleMongoWorkloadFactory
 
     for {
-      _ <- workloadFactory.process(workloadId, engine)
-      items <- workloadFactory.get(DomainObjectGroup.byId(workloadId)).flatMap {
-        case None => Future.failed(new RuntimeException("huh?"))
-        case Some(workload) => workload.workItems.list
+      workload <- workloadFactory.get(DomainObjectGroup.byId(workloadId))
+      processor = workload.get.processor
+      items <- workload.get.workItems.runnableItemList
+      processedItems <- Future.traverse(items) { item =>
+        for {
+          (itemResult, updatedPayload) <- processor.process(item.payload)
+          result <- item(Processed(updatedPayload, itemResult))
+        } yield result
       }
-    } yield assert(items.head.payload.target == "STRING TO BE PROCESSED")
+    } yield assert(processedItems.size == 10)
   }
-  */
 }
 

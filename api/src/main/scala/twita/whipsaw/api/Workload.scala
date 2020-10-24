@@ -63,9 +63,9 @@ object WorkloadId {
 trait Workload[
     Payload
   , SParams
-  , RS <: RegisteredScheduler[SParams, Payload]
+  , RS <: RegisteredScheduler
   , PParams
-  , RP <: RegisteredProcessor[PParams, Payload]
+  , RP <: RegisteredProcessor
 ] extends DomainObject[EventId, Workload[Payload, SParams, RS, PParams, RP]] {
   override type AllowedEvent = Workload.Event
   override type ObjectId = WorkloadId
@@ -84,9 +84,9 @@ object Workload {
 trait Workloads[
     Payload
   , SParams
-  , RS <: RegisteredScheduler[SParams, Payload]
+  , RS <: RegisteredScheduler
   , PParams
-  , RP <: RegisteredProcessor[PParams, Payload]
+  , RP <: RegisteredProcessor
 ] extends DomainObjectGroup[EventId, Workload[Payload, SParams, RS, PParams, RP]] {
   override type AllowedEvent = Workloads.Event
 }
@@ -96,9 +96,9 @@ object Workloads {
 
   case class Created[
       SParams: OFormat
-    , RS <: RegisteredScheduler[SParams, _]: Format
+    , RS <: RegisteredScheduler: Format
     , PParams: OFormat
-    , RP <: RegisteredProcessor[PParams, _]: Format
+    , RP <: RegisteredProcessor: Format
   ](
     name: String, scheduler: RS, schedulerParams: SParams, processor: RP, processorParams: PParams
   ) extends Event {

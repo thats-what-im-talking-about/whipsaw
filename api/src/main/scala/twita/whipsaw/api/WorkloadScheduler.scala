@@ -26,6 +26,6 @@ trait WorkloadScheduler[Payload] {
   def schedule(): Iterator[Payload]
 }
 
-trait RegisteredScheduler[SParams, Payload] {
-  def withParams(p: SParams): WorkloadScheduler[Payload]
+trait RegisteredScheduler {
+  def apply(params: Any): WorkloadScheduler[_]
 }
