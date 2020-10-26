@@ -17,7 +17,3 @@ package twita.whipsaw.api
 trait WorkloadScheduler[Payload] {
   def schedule(): Iterator[Payload]
 }
-
-trait RegisteredScheduler[Params, Payload] {
-  def apply(params: Params): WorkloadScheduler[Payload]
-}

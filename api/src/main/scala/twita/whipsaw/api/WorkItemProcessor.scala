@@ -30,7 +30,3 @@ trait WorkItemProcessor[Payload] {
     */
   def process(payload: Payload): Future[(ItemResult, Payload)]
 }
-
-trait RegisteredProcessor[Params, Payload] {
-  def apply(params: Params): WorkItemProcessor[Payload]
-}

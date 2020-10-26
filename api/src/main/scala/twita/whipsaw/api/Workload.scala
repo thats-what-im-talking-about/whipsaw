@@ -39,8 +39,8 @@ object WorkloadId {
   * @tparam PParams
   */
 case class Metadata[Payload, SParams, PParams](
-    scheduler: RegisteredScheduler[SParams, Payload]
-  , processor: RegisteredProcessor[PParams, Payload]
+    scheduler: SParams => WorkloadScheduler[Payload]
+  , processor: PParams => WorkItemProcessor[Payload]
 )
 
 /**
