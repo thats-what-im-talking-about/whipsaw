@@ -36,7 +36,7 @@ object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc
 
 trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Payload], WorkItemDoc[Payload]] {
   implicit def mongoContext: MongoContext
-  implicit def payloadFmt: OFormat[Payload]
+  implicit def pFmt: OFormat[Payload]
   protected def workload: Workload[Payload, _, _]
 
   override protected lazy val objCollectionFt: Future[JSONCollection] = mongoContext.getCollection(s"workloads.${workload.id.value}")
@@ -45,12 +45,14 @@ trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Pay
   override lazy val eventLogger = new MongoObjectEventStackLogger(50)
 }
 
-class MongoWorkItem[Payload](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload, _, _])(
-  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext, override val payloadFmt: OFormat[Payload]
+class MongoWorkItem[Payload: OFormat](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload, _, _])(
+  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
 ) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
   with WorkItemDescriptor[Payload]
   with WorkItem[Payload]
 {
+  override val pFmt = implicitly[OFormat[Payload]]
+
   override def runAt: Option[Instant] = obj.runAt
   override def payload: Payload = obj.payload
 
@@ -66,13 +68,14 @@ class MongoWorkItem[Payload](protected val underlying: Either[Empty[WorkItemId],
   }
 }
 
-class MongoWorkItems[Payload](protected val workload: Workload[Payload, _, _])(
-  implicit executionContext: ExecutionContext, val mongoContext: MongoContext, override val payloadFmt: OFormat[Payload]
+class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload, _, _])(
+  implicit executionContext: ExecutionContext, val mongoContext: MongoContext
 )
   extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
     with WorkItemDescriptor[Payload]
     with WorkItems[Payload]
 {
+  override val pFmt = implicitly[OFormat[Payload]]
   override protected def listConstraint: JsObject = Json.obj()
 
   override def list(q: DomainObjectGroup.Query): Future[List[WorkItem[Payload]]] = q match {
@@ -85,7 +88,7 @@ class MongoWorkItems[Payload](protected val workload: Workload[Payload, _, _])(
   override def runnableItemList: Future[List[WorkItem[Payload]]] = list(WorkItems.RunnableAt())
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = event match {
-    case evt: WorkItems.WorkItemAdded[Payload] =>
+    case evt: WorkItemAdded =>
       create(WorkItemDoc(_id = WorkItemId(), workloadId = workload.id, runAt = evt.runAt, payload = evt.payload), evt, parent)
   }
 }

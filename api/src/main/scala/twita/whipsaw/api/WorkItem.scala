@@ -10,6 +10,7 @@ import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
 import play.api.libs.json.Json
+import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
@@ -63,19 +64,20 @@ object WorkItem {
 }
 
 trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
-  override type AllowedEvent = WorkItems.Event
+  implicit def pFmt: OFormat[Payload]
+  override type AllowedEvent = Event
 
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
   def runnableItemList: Future[List[WorkItem[Payload]]]
+
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+
+  case class WorkItemAdded(payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
+  object WorkItemAdded { implicit val fmt = Json.format[WorkItemAdded] }
 }
 
 object WorkItems {
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
-
-  case class WorkItemAdded[Payload](payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
-  object WorkItemAdded { implicit def fmt[Payload: Format] = Json.format[WorkItemAdded[Payload]] }
-
   case class RunnableAt(runAt: Instant = Instant.now) extends Query
 }
