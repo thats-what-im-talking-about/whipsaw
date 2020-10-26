@@ -8,19 +8,16 @@ import twita.whipsaw.api.ItemResult
 import twita.whipsaw.api.Metadata
 import twita.whipsaw.api.WorkItem.Processed
 import twita.whipsaw.api.WorkItemProcessor
-import twita.whipsaw.api.WorkItems.WorkItemAdded
 import twita.whipsaw.api.WorkloadId
-import twita.whipsaw.reactivemongo.impl.testapp.ProcessorRegistryEntry
 import twita.whipsaw.reactivemongo.impl.testapp.SampleProcessorParams
 import twita.whipsaw.reactivemongo.impl.testapp.SampleSchedulerParams
-import twita.whipsaw.reactivemongo.impl.testapp.SchedulerRegistryEntry
+import twita.whipsaw.reactivemongo.impl.testapp.SampleWorkItemProcessor
+import twita.whipsaw.reactivemongo.impl.testapp.SampleWorkloadScheduler
 
 import scala.concurrent.Future
 
 package testapp {
   import play.api.libs.json.Json
-  import twita.whipsaw.api.RegisteredProcessor
-  import twita.whipsaw.api.RegisteredScheduler
   import twita.whipsaw.api.WorkloadScheduler
 
   case class SamplePayload(
@@ -59,25 +56,11 @@ package testapp {
         )
       ))
   }
-
-  // Create a Workload Processor Registry
-  object ProcessorRegistry{
-    case object Sample extends RegisteredProcessor[SampleProcessorParams, SamplePayload] {
-      override def apply(params: SampleProcessorParams): WorkItemProcessor[SamplePayload] = new SampleWorkItemProcessor(params)
-    }
-  }
-
-  // Create a Workload Scheduler Registry
-  object SchedulerRegistry {
-    case object Sample extends RegisteredScheduler[SampleSchedulerParams, SamplePayload] {
-      override def apply(params: SampleSchedulerParams): WorkloadScheduler[SamplePayload] = new SampleWorkloadScheduler(params)
-    }
-  }
 }
 
 class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val boundWorkload = Metadata(testapp.SchedulerRegistry.Sample, testapp.ProcessorRegistry.Sample)
+  val boundWorkload = Metadata(new SampleWorkloadScheduler(_:SampleSchedulerParams), new SampleWorkItemProcessor(_:SampleProcessorParams))
   val workloadFactory = new MongoWorkloads(boundWorkload)
   var workloadId: WorkloadId = _
 
@@ -99,10 +82,11 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   "work items" should "be scheduled properly with the workload scheduler" in {
     val factory = new MongoWorkloads(boundWorkload)
     for {
-      workload <- factory.get(DomainObjectGroup.byId(workloadId))
-      scheduler = workload.get.scheduler
+      workload <- factory.get(DomainObjectGroup.byId(workloadId)).map(_.get)
+      scheduler = workload.scheduler
       items = scheduler.schedule().toList
-      addedItems <- Future.traverse(items) {item => workload.get.workItems(WorkItemAdded(item))}
+      itemFactory = workload.workItems
+      addedItems <- Future.traverse(items) {item => itemFactory(itemFactory.WorkItemAdded(item))}
     } yield assert(addedItems.size == 10)
   }
 
