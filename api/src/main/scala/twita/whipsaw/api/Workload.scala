@@ -2,22 +2,17 @@ package twita.whipsaw.api
 
 import java.util.UUID
 
-import enumeratum.EnumEntry
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
-import play.api.libs.json.JsObject
 import play.api.libs.json.JsResult
 import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
-import play.api.libs.json.Writes
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
-
-import scala.concurrent.Future
 
 case class WorkloadId(value: String) extends AnyVal
 object WorkloadId {
@@ -31,6 +26,22 @@ object WorkloadId {
     override def writes(o: WorkloadId): JsValue = JsString(o.value)
   }
 }
+
+/**
+  * Workload instances will always be created with an instance of this class which provides the factories that create
+  * the correct Scheduler and Processor for this workload.
+  * @param scheduler {{RegisteredScheduler}} instance which, given an instance of {{SParams}} will create a new
+  *                  {{WorkloadScheduler}} instance for use by this {{Workload}}.
+  * @param processor {{RegisteredProcessor}} instance which, given an instance of {{PParams}} will create a new
+  *                  {{WorkItemProcessor}} instance for use by this {{Workload}}.
+  * @tparam Payload
+  * @tparam SParams
+  * @tparam PParams
+  */
+case class Metadata[Payload, SParams, PParams](
+    scheduler: RegisteredScheduler[SParams, Payload]
+  , processor: RegisteredProcessor[PParams, Payload]
+)
 
 /**
   * Defines the contracts for describing a generic Payload in this system.  A Workload has 3 different parts that
@@ -57,16 +68,10 @@ object WorkloadId {
   * @tparam Payload The type that contains a complete description of everything that an individual WorkItem needs
   *                 in order to be processed by the Workload.  This will be persisted with the Workload so that the
   *                 processing of the Workload may pick up where it left off if for some reason it's interrupted.
-  * @tparam RS Registered WorkloadScheduler that will be used to create the list of WorkItems to be processed.
-  * @tparam RP Registered WorkItemProcessor that will be used to process the WorkItems.
   */
-trait Workload[
-    Payload
-  , SParams
-  , RS <: RegisteredScheduler
-  , PParams
-  , RP <: RegisteredProcessor
-] extends DomainObject[EventId, Workload[Payload, SParams, RS, PParams, RP]] {
+trait Workload[Payload, SParams, PParams]
+extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
+{
   override type AllowedEvent = Workload.Event
   override type ObjectId = WorkloadId
 
@@ -81,27 +86,14 @@ object Workload {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait Workloads[
-    Payload
-  , SParams
-  , RS <: RegisteredScheduler
-  , PParams
-  , RP <: RegisteredProcessor
-] extends DomainObjectGroup[EventId, Workload[Payload, SParams, RS, PParams, RP]] {
-  override type AllowedEvent = Workloads.Event
-}
+trait Workloads[Payload, SParams, PParams]
+extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
+  implicit def spFmt: OFormat[SParams]
+  implicit def ppFmt: OFormat[PParams]
+  override type AllowedEvent = Event
 
-object Workloads {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class Created[
-      SParams: OFormat
-    , RS <: RegisteredScheduler: Format
-    , PParams: OFormat
-    , RP <: RegisteredProcessor: Format
-  ](
-    name: String, scheduler: RS, schedulerParams: SParams, processor: RP, processorParams: PParams
-  ) extends Event {
-    def fmt = Json.format[Created[SParams, RS, PParams, RP]]
-  }
+  case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
+  object Created { implicit val fmt = Json.format[Created] }
 }

@@ -1,13 +1,5 @@
 package twita.whipsaw.api
 
-import play.api.libs.json.Format
-import play.api.libs.json.OFormat
-import twita.whipsaw.api.WorkItems.WorkItemAdded
-
-import scala.concurrent.Future
-
-trait ScheduleCompletion
-
 /**
   * Encapsulates the logic for scheduling a particular Workload.  In this context, the term "scheduling" refers to
   * producing an arbitrarily large number of WorkItems which are to be added to a Workload.  Presumably these items
@@ -26,6 +18,6 @@ trait WorkloadScheduler[Payload] {
   def schedule(): Iterator[Payload]
 }
 
-trait RegisteredScheduler {
-  def apply(params: Any): WorkloadScheduler[_]
+trait RegisteredScheduler[Params, Payload] {
+  def apply(params: Params): WorkloadScheduler[Payload]
 }

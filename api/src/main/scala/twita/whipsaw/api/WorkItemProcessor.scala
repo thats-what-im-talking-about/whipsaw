@@ -3,8 +3,6 @@ package twita.whipsaw.api
 import java.time.Instant
 
 import enumeratum._
-import play.api.libs.json.Format
-import play.api.libs.json.OFormat
 
 import scala.concurrent.Future
 
@@ -33,6 +31,6 @@ trait WorkItemProcessor[Payload] {
   def process(payload: Payload): Future[(ItemResult, Payload)]
 }
 
-trait RegisteredProcessor {
-  def apply(params: Any): WorkItemProcessor[_]
+trait RegisteredProcessor[Params, Payload] {
+  def apply(params: Params): WorkItemProcessor[Payload]
 }

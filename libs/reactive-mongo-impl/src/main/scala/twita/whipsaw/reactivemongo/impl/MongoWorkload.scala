@@ -1,12 +1,8 @@
 package twita.whipsaw.reactivemongo.impl
 
-import play.api.libs.json.Format
 import play.api.libs.json.JsObject
-import play.api.libs.json.JsResult
-import play.api.libs.json.JsValue
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
-import play.api.libs.json.Writes
 import reactivemongo.play.json.collection.JSONCollection
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
@@ -17,8 +13,7 @@ import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.whipsaw.api.EventId
-import twita.whipsaw.api.RegisteredProcessor
-import twita.whipsaw.api.RegisteredScheduler
+import twita.whipsaw.api.Metadata
 import twita.whipsaw.api.WorkItemProcessor
 import twita.whipsaw.api.WorkItems
 import twita.whipsaw.api.Workload
@@ -29,101 +24,82 @@ import twita.whipsaw.api.Workloads
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-case class WorkloadDoc[
-    SParams: OFormat, RS <: RegisteredScheduler: Format
-  , PParams: OFormat, RP <: RegisteredProcessor: Format
-](
+case class WorkloadDoc[SParams: OFormat, PParams: OFormat]
+(
     _id: WorkloadId
   , name: String
-  , scheduler: RS
   , schedulerParams: SParams
-  , processor: RP
   , processorParams: PParams
 ) extends BaseDoc[WorkloadId]
 
 object WorkloadDoc {
-  implicit def fmt [
-      SParams: OFormat, RS <: RegisteredScheduler: Format
-    , PParams: OFormat, RP <: RegisteredProcessor: Format
-  ] = Json.format[WorkloadDoc[SParams, RS, PParams, RP]]
+  implicit def fmt[SParams: OFormat, PParams: OFormat] = Json.format[WorkloadDoc[SParams, PParams]]
 }
 
-trait WorkloadDescriptor[
-    Payload
-  , SParams, RS <: RegisteredScheduler
-  , PParams, RP <: RegisteredProcessor]
-extends ObjectDescriptor[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
+trait WorkloadDescriptor[Payload, SParams, PParams]
+extends ObjectDescriptor[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
 {
   implicit def mongoContext: MongoContext
-  implicit def payloadFmt: OFormat[Payload]
-  implicit def sParamsFmt: OFormat[SParams]
-  implicit def schedulerFmt: Format[RS]
-  implicit def pParamsFmt: OFormat[PParams]
-  implicit def processorFmt: Format[RP]
+  implicit def pFmt: OFormat[Payload]
+  implicit def spFmt: OFormat[SParams]
+  implicit def ppFmt: OFormat[PParams]
+  implicit val dFmt: OFormat[WorkloadDoc[SParams, PParams]] = WorkloadDoc.fmt[SParams, PParams]
+  protected def metadata: Metadata[Payload, SParams, PParams]
 
   override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
-  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc[SParams, RS, PParams, RP]] => Workload[Payload, SParams, RS, PParams, RP] = {
-    o => new MongoWorkload[Payload, SParams, RS, PParams, RP](o)
+  override protected def cons: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]] => Workload[Payload, SParams, PParams] = {
+    o => new MongoWorkload[Payload, SParams, PParams](metadata, o)
   }
 }
 
-class MongoWorkload[
-    Payload
-  , SParams, RS <: RegisteredScheduler
-  , PParams, RP <: RegisteredProcessor
-](protected val underlying: Either[Empty[WorkloadId], WorkloadDoc[SParams, RS, PParams, RP]]
-)(implicit executionContext: ExecutionContext
-         , override val mongoContext: MongoContext
-         , override val payloadFmt: OFormat[Payload]
-         , override val sParamsFmt: OFormat[SParams]
-         , override val schedulerFmt: Format[RS]
-         , override val pParamsFmt: OFormat[PParams]
-         , override val processorFmt: Format[RP])
-extends ReactiveMongoObject[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
-  with WorkloadDescriptor[Payload, SParams, RS, PParams, RP]
-  with Workload[Payload, SParams, RS, PParams, RP]
+class MongoWorkload[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+    protected val metadata: Metadata[Payload, SParams, PParams]
+  , protected val underlying: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]]
+)(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext)
+extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
+  with WorkloadDescriptor[Payload, SParams, PParams]
+  with Workload[Payload, SParams, PParams]
 {
+  override val pFmt = implicitly[OFormat[Payload]]
+  override val spFmt = implicitly[OFormat[SParams]]
+  override val ppFmt = implicitly[OFormat[PParams]]
   override def name: String = obj.name
 
   override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
-  override def scheduler: WorkloadScheduler[Payload] = obj.scheduler(obj.schedulerParams).asInstanceOf[WorkloadScheduler[Payload]]
+  override def scheduler: WorkloadScheduler[Payload] = metadata.scheduler(obj.schedulerParams)
 
-  override def processor: WorkItemProcessor[Payload] = obj.processor(obj.processorParams).asInstanceOf[WorkItemProcessor[Payload]]
+  override def processor: WorkItemProcessor[Payload] = metadata.processor(obj.processorParams)
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, RS, PParams, RP]] = ???
+  override def apply(
+      event: AllowedEvent
+    , parent: Option[BaseEvent[EventId]]
+  ) : Future[Workload[Payload, SParams, PParams]] = ???
 }
 
-class MongoWorkloads[
-    Payload
-  , SParams, RS <: RegisteredScheduler
-  , PParams, RP <: RegisteredProcessor
-](
-  implicit executionContext: ExecutionContext
-         , val mongoContext: MongoContext
-         , override val payloadFmt: OFormat[Payload]
-         , override val sParamsFmt: OFormat[SParams]
-         , override val schedulerFmt: Format[RS]
-         , override val pParamsFmt: OFormat[PParams]
-         , override val processorFmt: Format[RP]
+class MongoWorkloads[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+    protected val metadata: Metadata[Payload, SParams, PParams]
+)(
+    implicit executionContext: ExecutionContext
+  , val mongoContext: MongoContext
 )
-extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, RS, PParams, RP], WorkloadDoc[SParams, RS, PParams, RP]]
-  with WorkloadDescriptor[Payload, SParams, RS, PParams, RP]
-  with Workloads[Payload, SParams, RS, PParams, RP]
+extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
+  with WorkloadDescriptor[Payload, SParams, PParams]
+  with Workloads[Payload, SParams, PParams]
 {
+  override val pFmt = implicitly[OFormat[Payload]]
+  override val spFmt = implicitly[OFormat[SParams]]
+  override val ppFmt = implicitly[OFormat[PParams]]
   override protected def listConstraint: JsObject = Json.obj()
-  override def list(q: DomainObjectGroup.Query): Future[List[Workload[Payload, SParams, RS, PParams, RP]]] = ???
+  override def list(q: DomainObjectGroup.Query): Future[List[Workload[Payload, SParams, PParams]]] = ???
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, RS, PParams, RP]] = event match {
-    case evt: Workloads.Created[SParams, RS, PParams, RP] => create(
-      WorkloadDoc[SParams, RS, PParams, RP](
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, PParams]] = event match {
+    case evt: Created => create(
+      WorkloadDoc(
           _id = WorkloadId()
         , name = evt.name
-        , scheduler = evt.scheduler
         , schedulerParams = evt.schedulerParams
-        , processor = evt.processor
         , processorParams = evt.processorParams
-      ), evt, parent)(evt.fmt)
+      ), evt, parent)
     }
-
 }

@@ -5,11 +5,11 @@ import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.api.ItemResult
+import twita.whipsaw.api.Metadata
 import twita.whipsaw.api.WorkItem.Processed
 import twita.whipsaw.api.WorkItemProcessor
 import twita.whipsaw.api.WorkItems.WorkItemAdded
 import twita.whipsaw.api.WorkloadId
-import twita.whipsaw.api.Workloads
 import twita.whipsaw.reactivemongo.impl.testapp.ProcessorRegistryEntry
 import twita.whipsaw.reactivemongo.impl.testapp.SampleProcessorParams
 import twita.whipsaw.reactivemongo.impl.testapp.SampleSchedulerParams
@@ -18,14 +18,10 @@ import twita.whipsaw.reactivemongo.impl.testapp.SchedulerRegistryEntry
 import scala.concurrent.Future
 
 package testapp {
-  import enumeratum._
   import play.api.libs.json.Json
-  import twita.dominion.impl.reactivemongo.MongoContext
   import twita.whipsaw.api.RegisteredProcessor
   import twita.whipsaw.api.RegisteredScheduler
   import twita.whipsaw.api.WorkloadScheduler
-
-  import scala.concurrent.ExecutionContext
 
   case class SamplePayload(
       email: String
@@ -37,6 +33,10 @@ package testapp {
   // create a holder for the arguments that are going to the scheduler
   case class SampleSchedulerParams(numItems: Int)
   object SampleSchedulerParams { implicit val fmt = Json.format[SampleSchedulerParams] }
+
+  // created an alternative just to convince myself that the compiler would be unhappy.
+  case class WrongSampleSchedulerParams(numItems: Int)
+  object WrongSampleSchedulerParams { implicit val fmt = Json.format[WrongSampleSchedulerParams] }
 
   // create a scheduler
   class SampleWorkloadScheduler(p: SampleSchedulerParams) extends WorkloadScheduler[SamplePayload] {
@@ -61,54 +61,32 @@ package testapp {
   }
 
   // Create a Workload Processor Registry
-  sealed trait ProcessorRegistryEntry extends EnumEntry with RegisteredProcessor
-  object ProcessorRegistryEntry extends Enum[ProcessorRegistryEntry] with PlayJsonEnum[ProcessorRegistryEntry] {
-    override val values = findValues
-
-    case object Sample extends ProcessorRegistryEntry {
-      override def apply(params: Any): WorkItemProcessor[_] = params match {
-        case p: SampleProcessorParams => new SampleWorkItemProcessor(p)
-      }
+  object ProcessorRegistry{
+    case object Sample extends RegisteredProcessor[SampleProcessorParams, SamplePayload] {
+      override def apply(params: SampleProcessorParams): WorkItemProcessor[SamplePayload] = new SampleWorkItemProcessor(params)
     }
   }
 
   // Create a Workload Scheduler Registry
-  sealed trait SchedulerRegistryEntry extends EnumEntry with RegisteredScheduler
-  object SchedulerRegistryEntry extends Enum[SchedulerRegistryEntry] with PlayJsonEnum[SchedulerRegistryEntry] {
-    override val values = findValues
-
-    case object Sample extends SchedulerRegistryEntry {
-      override def apply(params: Any): WorkloadScheduler[SamplePayload] = params match {
-        case p: SampleSchedulerParams => new SampleWorkloadScheduler(p)
-      }
+  object SchedulerRegistry {
+    case object Sample extends RegisteredScheduler[SampleSchedulerParams, SamplePayload] {
+      override def apply(params: SampleSchedulerParams): WorkloadScheduler[SamplePayload] = new SampleWorkloadScheduler(params)
     }
-  }
-
-  // create a workload factory out of these types
-  class SampleMongoWorkloadFactory(implicit executionContext: ExecutionContext, mongoContext: MongoContext)
-    extends MongoWorkloads[
-        SamplePayload
-      , SampleSchedulerParams
-      , SchedulerRegistryEntry
-      , SampleProcessorParams
-      , ProcessorRegistryEntry] {
-    override def eventLogger: EventLogger = new MongoObjectEventStackLogger(4)
   }
 }
 
 class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val workloadFactory = new testapp.SampleMongoWorkloadFactory
+  val boundWorkload = Metadata(testapp.SchedulerRegistry.Sample, testapp.ProcessorRegistry.Sample)
+  val workloadFactory = new MongoWorkloads(boundWorkload)
   var workloadId: WorkloadId = _
 
   "workloads" should "be created" in {
     for {
       createdWorkload <- workloadFactory(
-        Workloads.Created(
+        workloadFactory.Created(
             name = "Sample Workload"
-          , scheduler = SchedulerRegistryEntry.Sample: SchedulerRegistryEntry
           , schedulerParams = SampleSchedulerParams(10)
-          , processor = ProcessorRegistryEntry.Sample: ProcessorRegistryEntry
           , processorParams = SampleProcessorParams("PrOcEsSeD")
         )
       )
@@ -119,7 +97,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   }
 
   "work items" should "be scheduled properly with the workload scheduler" in {
-    val factory = new testapp.SampleMongoWorkloadFactory()
+    val factory = new MongoWorkloads(boundWorkload)
     for {
       workload <- factory.get(DomainObjectGroup.byId(workloadId))
       scheduler = workload.get.scheduler
@@ -129,7 +107,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   }
 
   "workload processing" should "process the runnable workload" in {
-    val workloadFactory = new testapp.SampleMongoWorkloadFactory
+    val workloadFactory = new MongoWorkloads(boundWorkload)
 
     for {
       workload <- workloadFactory.get(DomainObjectGroup.byId(workloadId))
