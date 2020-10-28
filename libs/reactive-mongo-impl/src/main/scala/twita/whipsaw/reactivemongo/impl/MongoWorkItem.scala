@@ -15,13 +15,13 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
-import twita.whipsaw.api.EventId
-import twita.whipsaw.api.ItemResult
-import twita.whipsaw.api.WorkItem
-import twita.whipsaw.api.WorkItemId
-import twita.whipsaw.api.WorkItems
-import twita.whipsaw.api.Workload
-import twita.whipsaw.api.WorkloadId
+import twita.whipsaw.api.workloads.EventId
+import twita.whipsaw.api.workloads.ItemResult
+import twita.whipsaw.api.workloads.WorkItem
+import twita.whipsaw.api.workloads.WorkItemId
+import twita.whipsaw.api.workloads.WorkItems
+import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

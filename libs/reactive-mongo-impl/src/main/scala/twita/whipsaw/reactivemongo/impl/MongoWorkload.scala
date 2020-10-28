@@ -12,14 +12,14 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
-import twita.whipsaw.api.EventId
-import twita.whipsaw.api.Metadata
-import twita.whipsaw.api.WorkItemProcessor
-import twita.whipsaw.api.WorkItems
-import twita.whipsaw.api.Workload
-import twita.whipsaw.api.WorkloadId
-import twita.whipsaw.api.WorkloadScheduler
-import twita.whipsaw.api.Workloads
+import twita.whipsaw.api.workloads.EventId
+import twita.whipsaw.api.workloads.Metadata
+import twita.whipsaw.api.workloads.Processor
+import twita.whipsaw.api.workloads.Scheduler
+import twita.whipsaw.api.workloads.WorkItems
+import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadFactory
+import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -67,9 +67,9 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
 
   override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
-  override def scheduler: WorkloadScheduler[Payload] = metadata.scheduler(obj.schedulerParams)
+  override def scheduler: Scheduler[Payload] = metadata.scheduler(obj.schedulerParams)
 
-  override def processor: WorkItemProcessor[Payload] = metadata.processor(obj.processorParams)
+  override def processor: Processor[Payload] = metadata.processor(obj.processorParams)
 
   override def apply(
       event: AllowedEvent
@@ -77,7 +77,7 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
   ) : Future[Workload[Payload, SParams, PParams]] = ???
 }
 
-class MongoWorkloads[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+class MongoWorkloadFactory[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     protected val metadata: Metadata[Payload, SParams, PParams]
 )(
     implicit executionContext: ExecutionContext
@@ -85,7 +85,7 @@ class MongoWorkloads[Payload: OFormat, SParams: OFormat, PParams: OFormat](
 )
 extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
   with WorkloadDescriptor[Payload, SParams, PParams]
-  with Workloads[Payload, SParams, PParams]
+  with WorkloadFactory[Payload, SParams, PParams]
 {
   override val pFmt = implicitly[OFormat[Payload]]
   override val spFmt = implicitly[OFormat[SParams]]

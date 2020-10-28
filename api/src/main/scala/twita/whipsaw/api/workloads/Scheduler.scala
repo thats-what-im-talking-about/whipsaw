@@ -1,4 +1,4 @@
-package twita.whipsaw.api
+package twita.whipsaw.api.workloads
 
 /**
   * Encapsulates the logic for scheduling a particular Workload.  In this context, the term "scheduling" refers to
@@ -14,6 +14,6 @@ package twita.whipsaw.api
   * the scheduling job from where it left off or we are able to restart the job from the beginning and not have any
   * duplicate workItems be scheduled.
   */
-trait WorkloadScheduler[Payload] {
+trait Scheduler[Payload] {
   def schedule(): Iterator[Payload]
 }

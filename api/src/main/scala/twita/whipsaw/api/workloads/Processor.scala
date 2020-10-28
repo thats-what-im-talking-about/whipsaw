@@ -1,4 +1,4 @@
-package twita.whipsaw.api
+package twita.whipsaw.api.workloads
 
 import java.time.Instant
 
@@ -22,7 +22,7 @@ object ItemResult extends Enum[ItemResult] with PlayJsonEnum[ItemResult] {
   * a Workload.
   * @tparam Payload The application-defined payload for the Workload that is being processed.
   */
-trait WorkItemProcessor[Payload] {
+trait Processor[Payload] {
   /**
     * @param payload App-specific instance of a payload that is being processed
     * @return Eventually, an updated version of the payload as well as an ItemResult that will instruct the

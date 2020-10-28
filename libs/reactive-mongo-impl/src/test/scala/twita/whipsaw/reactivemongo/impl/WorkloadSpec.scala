@@ -4,21 +4,19 @@ import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
-import twita.whipsaw.api.ItemResult
-import twita.whipsaw.api.Metadata
-import twita.whipsaw.api.WorkItem.Processed
-import twita.whipsaw.api.WorkItemProcessor
-import twita.whipsaw.api.WorkloadId
+import twita.whipsaw.api.workloads.Metadata
+import twita.whipsaw.api.workloads.Processor
+import twita.whipsaw.api.workloads.WorkItem.Processed
+import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.reactivemongo.impl.testapp.SampleProcessorParams
 import twita.whipsaw.reactivemongo.impl.testapp.SampleSchedulerParams
-import twita.whipsaw.reactivemongo.impl.testapp.SampleWorkItemProcessor
-import twita.whipsaw.reactivemongo.impl.testapp.SampleWorkloadScheduler
 
 import scala.concurrent.Future
 
 package testapp {
   import play.api.libs.json.Json
-  import twita.whipsaw.api.WorkloadScheduler
+  import twita.whipsaw.api.workloads.ItemResult
+  import twita.whipsaw.api.workloads.Scheduler
 
   case class SamplePayload(
       email: String
@@ -36,7 +34,7 @@ package testapp {
   object WrongSampleSchedulerParams { implicit val fmt = Json.format[WrongSampleSchedulerParams] }
 
   // create a scheduler
-  class SampleWorkloadScheduler(p: SampleSchedulerParams) extends WorkloadScheduler[SamplePayload] {
+  class SampleWorkloadScheduler(p: SampleSchedulerParams) extends Scheduler[SamplePayload] {
     override def schedule(): Iterator[SamplePayload] = Range(0, p.numItems).iterator.map { index =>
       SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
     }
@@ -47,7 +45,7 @@ package testapp {
   object SampleProcessorParams { implicit val fmt = Json.format[SampleProcessorParams] }
 
   // create a processor
-  class SampleWorkItemProcessor(p: SampleProcessorParams) extends WorkItemProcessor[SamplePayload] {
+  class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
     override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] =
       Future.successful((
         ItemResult.Done, payload.copy(
@@ -60,8 +58,8 @@ package testapp {
 
 class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val boundWorkload = Metadata(new SampleWorkloadScheduler(_:SampleSchedulerParams), new SampleWorkItemProcessor(_:SampleProcessorParams))
-  val workloadFactory = new MongoWorkloads(boundWorkload)
+  val metadata = Metadata(new testapp.SampleWorkloadScheduler(_:SampleSchedulerParams), new testapp.SampleWorkItemProcessor(_:SampleProcessorParams))
+  val workloadFactory = new MongoWorkloadFactory(metadata)
   var workloadId: WorkloadId = _
 
   "workloads" should "be created" in {
@@ -80,7 +78,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   }
 
   "work items" should "be scheduled properly with the workload scheduler" in {
-    val factory = new MongoWorkloads(boundWorkload)
+    val factory = new MongoWorkloadFactory(metadata)
     for {
       workload <- factory.get(DomainObjectGroup.byId(workloadId)).map(_.get)
       scheduler = workload.scheduler
@@ -91,7 +89,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   }
 
   "workload processing" should "process the runnable workload" in {
-    val workloadFactory = new MongoWorkloads(boundWorkload)
+    val factory = new MongoWorkloadFactory(metadata)
 
     for {
       workload <- workloadFactory.get(DomainObjectGroup.byId(workloadId))

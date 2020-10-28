@@ -1,4 +1,4 @@
-package twita.whipsaw
+package twita.whipsaw.api
 
 import java.util.UUID
 
@@ -10,7 +10,7 @@ import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
 import twita.dominion.api.IdGenerator
 
-package object api {
+package object workloads {
   case class EventId(value: String) extends AnyVal
   object EventId {
     implicit val fmt = new Format[EventId] {

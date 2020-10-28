@@ -1,4 +1,4 @@
-package twita.whipsaw.api
+package twita.whipsaw.api.workloads
 
 import java.util.UUID
 
@@ -39,8 +39,8 @@ object WorkloadId {
   * @tparam PParams
   */
 case class Metadata[Payload, SParams, PParams](
-    scheduler: SParams => WorkloadScheduler[Payload]
-  , processor: PParams => WorkItemProcessor[Payload]
+    scheduler: SParams => Scheduler[Payload]
+  , processor: PParams => Processor[Payload]
 )
 
 /**
@@ -78,15 +78,15 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def name: String
 
   def workItems: WorkItems[Payload]
-  def scheduler: WorkloadScheduler[Payload]
-  def processor: WorkItemProcessor[Payload]
+  def scheduler: Scheduler[Payload]
+  def processor: Processor[Payload]
 }
 
 object Workload {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait Workloads[Payload, SParams, PParams]
+trait WorkloadFactory[Payload, SParams, PParams]
 extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def spFmt: OFormat[SParams]
   implicit def ppFmt: OFormat[PParams]
