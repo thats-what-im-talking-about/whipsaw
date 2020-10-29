@@ -44,16 +44,16 @@ extends ObjectDescriptor[EventId, Workload[Payload, SParams, PParams], WorkloadD
   implicit def spFmt: OFormat[SParams]
   implicit def ppFmt: OFormat[PParams]
   implicit val dFmt: OFormat[WorkloadDoc[SParams, PParams]] = WorkloadDoc.fmt[SParams, PParams]
-  protected def metadata: Metadata[Payload, SParams, PParams]
+  def metadata: Metadata[Payload, SParams, PParams]
 
-  override protected def objCollectionFt: Future[JSONCollection] = mongoContext.getCollection("workloads")
+  override protected lazy val collectionName = "workloads"
   override protected def cons: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]] => Workload[Payload, SParams, PParams] = {
     o => new MongoWorkload[Payload, SParams, PParams](metadata, o)
   }
 }
 
 class MongoWorkload[Payload: OFormat, SParams: OFormat, PParams: OFormat](
-    protected val metadata: Metadata[Payload, SParams, PParams]
+    val metadata: Metadata[Payload, SParams, PParams]
   , protected val underlying: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]]
 )(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext)
 extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
@@ -78,7 +78,7 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
 }
 
 class MongoWorkloadFactory[Payload: OFormat, SParams: OFormat, PParams: OFormat](
-    protected val metadata: Metadata[Payload, SParams, PParams]
+    val metadata: Metadata[Payload, SParams, PParams]
 )(
     implicit executionContext: ExecutionContext
   , val mongoContext: MongoContext

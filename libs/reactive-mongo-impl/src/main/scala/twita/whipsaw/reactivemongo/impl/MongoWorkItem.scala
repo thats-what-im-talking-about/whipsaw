@@ -6,6 +6,7 @@ import play.api.libs.json.Format
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
+import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
@@ -38,8 +39,7 @@ trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Pay
   implicit def mongoContext: MongoContext
   implicit def pFmt: OFormat[Payload]
   protected def workload: Workload[Payload, _, _]
-
-  override protected lazy val objCollectionFt: Future[JSONCollection] = mongoContext.getCollection(s"workloads.${workload.id.value}")
+  override protected lazy val collectionName = s"workloads.${workload.id.value}"
   override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Payload]] => WorkItem[Payload] = o => new MongoWorkItem(o, workload)
 
   override lazy val eventLogger = new MongoObjectEventStackLogger(50)
@@ -75,6 +75,28 @@ class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload,
     with WorkItemDescriptor[Payload]
     with WorkItems[Payload]
 {
+
+  override protected def ensureIndexes(coll: JSONCollection) = {
+    val uniqueIndexKeys = workload.metadata.payloadUniqueConstraint.map(fld => s"payload.${fld}" -> IndexType.Ascending)
+    for {
+      // enforce uniqueness over all payloads in this collection
+      payloadUnique <- coll.indexesManager.ensure(
+        ObjectDescriptor.index(
+            key = uniqueIndexKeys
+          , unique = true
+          , sparse = true
+        )
+      )
+      // sparse index on runAt to speed up the retrieval of workItems that are ready to run
+      runAt <- coll.indexesManager.ensure(
+        ObjectDescriptor.index(
+            key = Seq("runAt" -> IndexType.Ascending)
+          , sparse = true
+        )
+      )
+    } yield payloadUnique && runAt
+  }
+
   override val pFmt = implicitly[OFormat[Payload]]
   override protected def listConstraint: JsObject = Json.obj()
 

@@ -58,7 +58,11 @@ package testapp {
 
 class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl
-  val metadata = Metadata(new testapp.SampleWorkloadScheduler(_:SampleSchedulerParams), new testapp.SampleWorkItemProcessor(_:SampleProcessorParams))
+  val metadata = Metadata(
+      new testapp.SampleWorkloadScheduler(_:SampleSchedulerParams)
+    , new testapp.SampleWorkItemProcessor(_:SampleProcessorParams)
+    , Seq("email")
+  )
   val workloadFactory = new MongoWorkloadFactory(metadata)
   var workloadId: WorkloadId = _
 
@@ -82,9 +86,9 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
     for {
       workload <- factory.get(DomainObjectGroup.byId(workloadId)).map(_.get)
       scheduler = workload.scheduler
-      items = scheduler.schedule().toList
+      payloads = scheduler.schedule().toList
       itemFactory = workload.workItems
-      addedItems <- Future.traverse(items) {item => itemFactory(itemFactory.WorkItemAdded(item))}
+      addedItems <- Future.traverse(payloads) {payload => itemFactory(itemFactory.WorkItemAdded(payload))}
     } yield assert(addedItems.size == 10)
   }
 
@@ -92,7 +96,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
     val factory = new MongoWorkloadFactory(metadata)
 
     for {
-      workload <- workloadFactory.get(DomainObjectGroup.byId(workloadId))
+      workload <- factory.get(DomainObjectGroup.byId(workloadId))
       processor = workload.get.processor
       items <- workload.get.workItems.runnableItemList
       processedItems <- Future.traverse(items) { item =>
