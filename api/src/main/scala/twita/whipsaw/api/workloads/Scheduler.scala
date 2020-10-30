@@ -1,5 +1,8 @@
 package twita.whipsaw.api.workloads
 
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+
 /**
   * Encapsulates the logic for scheduling a particular Workload.  In this context, the term "scheduling" refers to
   * producing an arbitrarily large number of WorkItems which are to be added to a Workload.  Presumably these items
@@ -15,5 +18,6 @@ package twita.whipsaw.api.workloads
   * duplicate workItems be scheduled.
   */
 trait Scheduler[Payload] {
-  def schedule(): Iterator[Payload]
+  def schedule()(implicit ec: ExecutionContext): Future[Iterator[Payload]]
+  def handleDuplicate(payload: Payload)(implicit ec: ExecutionContext): Future[Unit] = Future.unit
 }

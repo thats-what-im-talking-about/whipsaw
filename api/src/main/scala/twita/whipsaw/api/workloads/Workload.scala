@@ -1,5 +1,6 @@
 package twita.whipsaw.api.workloads
 
+import java.time.Instant
 import java.util.UUID
 
 import play.api.libs.json.Format
@@ -13,6 +14,14 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.whipsaw.api.engine.ProcessingStatus
+import twita.whipsaw.api.engine.SchedulingStatus
+import twita.whipsaw.api.engine.SchedulingStatus.Completed
+import twita.whipsaw.api.workloads.WorkItem.Processed
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.util.Success
 
 case class WorkloadId(value: String) extends AnyVal
 object WorkloadId {
@@ -78,6 +87,7 @@ case class Metadata[Payload, SParams, PParams](
 trait Workload[Payload, SParams, PParams]
 extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
 {
+  implicit def executionContext: ExecutionContext
   override type AllowedEvent = Workload.Event
   override type ObjectId = WorkloadId
 
@@ -87,6 +97,36 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def scheduler: Scheduler[Payload]
   def processor: Processor[Payload]
   def metadata: Metadata[Payload, SParams, PParams]
+
+  // This is needed to prevent a compiler error that deals with the generic expansion of the various events that
+  // are part of this trait:
+  // type mismatch;
+  // [error]  found   : twita.whipsaw.api.workloads.WorkItems[Payload]#WorkItemAdded
+  // [error]  required: qual$1.AllowedEvent
+  private lazy val workItemFactory = workItems
+
+  def schedule(): Future[SchedulingStatus] =
+    scheduler.schedule().flatMap(Future.traverse(_) { payload =>
+      workItemFactory(workItemFactory.WorkItemAdded(payload)).map(Some(_))
+        .recoverWith {
+          case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None)
+        }
+    }).map(_.foldLeft(Completed(0,0)) {
+      case (result, Some(item)) => Completed(result.created+1, result.dups)
+      case (result, None) => Completed(result.created, result.dups+1)
+    })
+
+  def process(): Future[ProcessingStatus] =
+    for {
+      items <- workItems.runnableItemList
+      processedItems <- Future.traverse(items) { item =>
+        // TODO: feels like this should be delegated to yet another layer below.. e.g. a "Worker"
+        for {
+          (itemResult, updatedPayload) <- processor.process(item.payload)
+          result <- item(Processed(updatedPayload, itemResult))
+        } yield result
+      }
+    } yield ProcessingStatus.Finished
 }
 
 object Workload {
@@ -104,3 +144,4 @@ extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
   object Created { implicit val fmt = Json.format[Created] }
 }
+
