@@ -40,6 +40,7 @@ trait Manager extends DomainObject[EventId, Manager] {
   def workload: Workload[_, _, _]
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
+  def workers: Workers
 
   def executeWorkload(): Future[(SchedulingStatus, ProcessingStatus)] = {
     val scheduledItemsFt = schedulingStatus match {
@@ -55,9 +56,11 @@ trait Manager extends DomainObject[EventId, Manager] {
       case ProcessingStatus.Finished => Future.successful(ProcessingStatus.Finished)
       case _ => for {
         running <- apply(Manager.ProcessingStatusUpdated(ProcessingStatus.Running))
-        result <- workload.process()
-        updated <- apply(Manager.ProcessingStatusUpdated(result))
-      } yield result
+        runnableItems <- workload.workItems.runnableItemList
+        workerSeq <- Future.traverse(runnableItems) { item => workers.forItem(item) }
+        processed <- Future.traverse(workerSeq) { worker => worker.process().map(worker.workItem.id -> _) }
+        updated <- apply(Manager.ProcessingStatusUpdated(ProcessingStatus.Finished))
+      } yield ProcessingStatus.Finished
     }
 
     for {

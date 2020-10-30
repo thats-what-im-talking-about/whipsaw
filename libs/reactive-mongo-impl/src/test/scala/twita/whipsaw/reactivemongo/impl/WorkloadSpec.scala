@@ -5,7 +5,6 @@ import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.api.workloads.Metadata
-import twita.whipsaw.api.workloads.WorkItem.Processed
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.Future
@@ -56,7 +55,7 @@ class WorkloadSpec extends AsyncFlatSpec with should.Matchers {
       processedItems <- Future.traverse(items) { item =>
         for {
           (itemResult, updatedPayload) <- processor.process(item.payload)
-          result <- item(Processed(updatedPayload, itemResult))
+          result <- item(item.FinishedProcessing(updatedPayload, itemResult))
         } yield result
       }
     } yield assert(processedItems.size == 10)

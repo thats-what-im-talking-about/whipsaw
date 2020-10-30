@@ -32,6 +32,8 @@ case class WorkItemDoc[Payload] (
   , workloadId: WorkloadId
   , payload: Payload
   , runAt: Option[Instant] = None
+  , startedProcessingAt: Option[Instant] = None
+  , finishedProcessingAt: Option[Instant] = None
 ) extends BaseDoc[WorkItemId]
 object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]] }
 
@@ -45,7 +47,10 @@ trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Pay
   override lazy val eventLogger = new MongoObjectEventStackLogger(50)
 }
 
-class MongoWorkItem[Payload: OFormat](protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]], protected val workload: Workload[Payload, _, _])(
+class MongoWorkItem[Payload: OFormat](
+    protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]]
+  , protected val workload: Workload[Payload, _, _]
+)(
   implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
 ) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
   with WorkItemDescriptor[Payload]
@@ -56,14 +61,23 @@ class MongoWorkItem[Payload: OFormat](protected val underlying: Either[Empty[Wor
   override def runAt: Option[Instant] = obj.runAt
   override def payload: Payload = obj.payload
 
-  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = event match {
-    case evt: WorkItem.Processed[Payload] =>
+  override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]) = event match {
+    case evt: StartedProcessing =>
       updateVerbose(
-        Json.obj("$set" -> Json.obj("payload" -> Json.toJsObject(evt.newPayload))) ++ {
-          evt.result match {
-            case ItemResult.Done => Json.obj("$unset" -> Json.obj("runAt" -> 1))
-          }
-        }, evt, parent
+        Json.obj(
+            "$set" -> Json.obj("startedProcessingAt" -> Json.toJson(evt.at))
+          , "$unset" -> Json.obj("runAt" -> 1)
+        ), evt, parent
+      )
+    case evt: FinishedProcessing =>
+      updateVerbose(
+        Json.obj(
+          "$set" ->
+            Json.obj(
+                "payload" -> Json.toJsObject(evt.newPayload)
+              , "finishedProcessingAt" -> Json.toJson(evt.at)
+            )
+        ), evt, parent
       )
   }
 }

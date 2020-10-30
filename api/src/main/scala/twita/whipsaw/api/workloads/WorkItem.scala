@@ -16,6 +16,7 @@ import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.Query
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 case class WorkItemId(value: String) extends AnyVal
@@ -40,7 +41,8 @@ object WorkItemId {
   *              WorkItem.
   */
 trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
-  override type AllowedEvent = WorkItem.Event
+  implicit def pFmt: OFormat[Payload]
+  override type AllowedEvent = Event
   override type ObjectId = WorkItemId
 
   /**
@@ -54,13 +56,22 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
     * @return Implementer-provided description of this work item.
     */
   def payload: Payload
-}
 
-object WorkItem {
+  protected def workload: Workload[Payload, _, _]
+
+  def process()(implicit ec: ExecutionContext): Future[ItemResult] = for {
+    started <- apply(StartedProcessing())
+    (itemResult, updatedPayload) <- workload.processor.process(payload)
+    result <- apply(FinishedProcessing(updatedPayload, itemResult))
+  } yield itemResult
+
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class Processed[Payload](newPayload: Payload, result: ItemResult) extends Event
-  object Processed { implicit def fmt[Payload: Format] = Json.format[Processed[Payload]] }
+  case class StartedProcessing(at: Instant = Instant.now) extends Event
+  object StartedProcessing { implicit val fmt = Json.format[StartedProcessing] }
+
+  case class FinishedProcessing(newPayload: Payload, result: ItemResult, at: Instant = Instant.now) extends Event
+  object FinishedProcessing { implicit val fmt = Json.format[FinishedProcessing] }
 }
 
 trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
