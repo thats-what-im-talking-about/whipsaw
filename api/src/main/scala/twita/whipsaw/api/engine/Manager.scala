@@ -34,8 +34,7 @@ object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[Process
   case object Finished extends ProcessingStatus
 }
 
-trait Manager extends DomainObject[EventId, Manager] {
-  override type AllowedEvent = Manager.Event
+trait Manager {
   implicit def executionContext: ExecutionContext
   def workload: Workload[_, _, _]
   def schedulingStatus: SchedulingStatus
@@ -43,11 +42,12 @@ trait Manager extends DomainObject[EventId, Manager] {
   def workers: Workers
 
   def executeWorkload(): Future[(SchedulingStatus, ProcessingStatus)] = {
+    val wl = workload // transforms workload into a val, fixes compiler error
     val scheduledItemsFt = schedulingStatus match {
       case SchedulingStatus.Init => for {
-        running <- apply(Manager.ScheduleStatusUpdated(SchedulingStatus.Running))
-        result <- workload.schedule()
-        updated <- apply(Manager.ScheduleStatusUpdated(result))
+        running <- wl(wl.ScheduleStatusUpdated(SchedulingStatus.Running))
+        result <- wl.schedule()
+        updated <- wl(wl.ScheduleStatusUpdated(result))
       } yield result
       case _ => Future.successful(SchedulingStatus.Finished)
     }
@@ -55,11 +55,12 @@ trait Manager extends DomainObject[EventId, Manager] {
     val processRunnablesFt = processingStatus match {
       case ProcessingStatus.Finished => Future.successful(ProcessingStatus.Finished)
       case _ => for {
-        running <- apply(Manager.ProcessingStatusUpdated(ProcessingStatus.Running))
-        runnableItems <- workload.workItems.runnableItemList
+        // TODO: Future.traverse won't work here if there are LOTS of work items.  Need to stream this.
+        running <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
+        runnableItems <- wl.workItems.runnableItemList
         workerSeq <- Future.traverse(runnableItems) { item => workers.forItem(item) }
         processed <- Future.traverse(workerSeq) { worker => worker.process().map(worker.workItem.id -> _) }
-        updated <- apply(Manager.ProcessingStatusUpdated(ProcessingStatus.Finished))
+        updated <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Finished))
       } yield ProcessingStatus.Finished
     }
 
@@ -70,22 +71,6 @@ trait Manager extends DomainObject[EventId, Manager] {
   }
 }
 
-object Manager {
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
-
-  case class ScheduleStatusUpdated(status: SchedulingStatus) extends Event
-  object ScheduleStatusUpdated { implicit val fmt = Json.format[ScheduleStatusUpdated] }
-
-  case class ProcessingStatusUpdated(status: ProcessingStatus) extends Event
-  object ProcessingStatusUpdated { implicit val fmt = Json.format[ProcessingStatusUpdated] }
-}
-
-trait Managers extends DomainObjectGroup[EventId, Manager] {
-  def forWorkload(managedWorkload: ManagedWorkload): Future[Manager]
-}
-
-trait ManagedWorkload extends DomainObject[EventId, ManagedWorkload]
-
-trait ManagedWorkloads {
-  def getRunnable(runAt: Instant = Instant.now): Future[Seq[ManagedWorkload]]
+trait Managers {
+  def forWorkload(workload: Workload[_, _, _]): Future[Manager]
 }

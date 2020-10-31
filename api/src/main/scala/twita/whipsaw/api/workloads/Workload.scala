@@ -13,6 +13,7 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.whipsaw.api.engine.ProcessingStatus
 import twita.whipsaw.api.engine.SchedulingStatus
 import twita.whipsaw.api.engine.SchedulingStatus.Completed
 
@@ -83,7 +84,7 @@ case class Metadata[Payload, SParams, PParams](
 trait Workload[Payload, SParams, PParams]
 extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
 {
-  override type AllowedEvent = Workload.Event
+  override type AllowedEvent = Event
   override type ObjectId = WorkloadId
 
   def name: String
@@ -110,10 +111,14 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
       case (result, Some(item)) => Completed(result.created+1, result.dups)
       case (result, None) => Completed(result.created, result.dups+1)
     })
-}
 
-object Workload {
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+
+  case class ScheduleStatusUpdated(status: SchedulingStatus) extends Event
+  object ScheduleStatusUpdated { implicit val fmt = Json.format[ScheduleStatusUpdated] }
+
+  case class ProcessingStatusUpdated(status: ProcessingStatus) extends Event
+  object ProcessingStatusUpdated { implicit val fmt = Json.format[ProcessingStatusUpdated] }
 }
 
 trait WorkloadFactory[Payload, SParams, PParams]
@@ -121,6 +126,8 @@ extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def spFmt: OFormat[SParams]
   implicit def ppFmt: OFormat[PParams]
   override type AllowedEvent = Event
+
+  def getRunnable: Future[List[Workload[Payload, SParams, PParams]]]
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 

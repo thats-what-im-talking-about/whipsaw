@@ -92,6 +92,7 @@ extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, PPara
   override val ppFmt = implicitly[OFormat[PParams]]
   override protected def listConstraint: JsObject = Json.obj()
   override def list(q: DomainObjectGroup.Query): Future[List[Workload[Payload, SParams, PParams]]] = ???
+  override def getRunnable: Future[List[Workload[Payload, SParams, PParams]]] = ???
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, PParams]] = event match {
     case evt: Created => create(
