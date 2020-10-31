@@ -4,6 +4,7 @@ import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
+import twita.whipsaw.TestApp
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.WorkloadId
 
