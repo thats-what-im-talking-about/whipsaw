@@ -1,5 +1,8 @@
 package twita.whipsaw.api.engine
 
+import twita.dominion.api.DomainObjectGroup.byId
+import twita.whipsaw.api.workloads.ProcessingStatus
+import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 
@@ -9,10 +12,8 @@ import scala.concurrent.Future
 trait Director {
   implicit def executionContext: ExecutionContext
 
-  /**
-    * @return Workloads instance representing all of the Workloads that this Director is responsible for.
-    */
-  def workloads: WorkloadFactory[_, _, _]
+  def registeredWorkloads: RegisteredWorkloads
+  def registry: WorkloadRegistry
 
   /**
     * @return Managers that are currently working on a Workload at the request of this Director.
@@ -22,7 +23,8 @@ trait Director {
   def delegateRunnableWorkloads(): Future[Seq[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
-      runnables <- workloads.getRunnable
+      listToRun <- registeredWorkloads.getRunnable
+      runnables <- Future.traverse(listToRun) { rw => registry(rw)}
       managerSeq <- Future.traverse(runnables) { runnable => managers.forWorkload(runnable) }
       processed <- Future.traverse(managerSeq) { manager => manager.executeWorkload().map(manager.workload.id -> _) }
     } yield processed

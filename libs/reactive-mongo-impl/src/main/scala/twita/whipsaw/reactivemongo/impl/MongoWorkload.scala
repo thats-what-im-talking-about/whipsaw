@@ -3,7 +3,6 @@ package twita.whipsaw.reactivemongo.impl
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
-import reactivemongo.play.json.collection.JSONCollection
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.BaseDoc
@@ -12,10 +11,13 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
+import twita.dominion.impl.reactivemongo.ReactiveMongoObject.SetOp
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
+import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
+import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadFactory
@@ -24,12 +26,14 @@ import twita.whipsaw.api.workloads.WorkloadId
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-case class WorkloadDoc[SParams: OFormat, PParams: OFormat]
-(
+case class WorkloadDoc[SParams: OFormat, PParams: OFormat] (
     _id: WorkloadId
   , name: String
+  , factoryType: String
   , schedulerParams: SParams
   , processorParams: PParams
+  , schedulingStatus: SchedulingStatus = SchedulingStatus.Init
+  , processingStatus: ProcessingStatus = ProcessingStatus.Init
 ) extends BaseDoc[WorkloadId]
 
 object WorkloadDoc {
@@ -45,6 +49,7 @@ extends ObjectDescriptor[EventId, Workload[Payload, SParams, PParams], WorkloadD
   implicit def ppFmt: OFormat[PParams]
   implicit val dFmt: OFormat[WorkloadDoc[SParams, PParams]] = WorkloadDoc.fmt[SParams, PParams]
   def metadata: Metadata[Payload, SParams, PParams]
+  override lazy val eventLogger = new MongoObjectEventStackLogger(50)
 
   override protected lazy val collectionName = "workloads"
   override protected def cons: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]] => Workload[Payload, SParams, PParams] = {
@@ -71,10 +76,17 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
 
   override def processor: Processor[Payload] = metadata.processor(obj.processorParams)
 
+  override def schedulingStatus: SchedulingStatus = obj.schedulingStatus
+
+  override def processingStatus: ProcessingStatus = obj.processingStatus
+
   override def apply(
       event: AllowedEvent
     , parent: Option[BaseEvent[EventId]]
-  ) : Future[Workload[Payload, SParams, PParams]] = ???
+  ) : Future[Workload[Payload, SParams, PParams]] = event match {
+    case evt: ScheduleStatusUpdated => update(SetOp(Json.toJsObject(evt)), evt, parent)
+    case evt: ProcessingStatusUpdated => update(SetOp(Json.toJsObject(evt)), evt, parent)
+  }
 }
 
 class MongoWorkloadFactory[Payload: OFormat, SParams: OFormat, PParams: OFormat](
@@ -92,13 +104,13 @@ extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, PPara
   override val ppFmt = implicitly[OFormat[PParams]]
   override protected def listConstraint: JsObject = Json.obj()
   override def list(q: DomainObjectGroup.Query): Future[List[Workload[Payload, SParams, PParams]]] = ???
-  override def getRunnable: Future[List[Workload[Payload, SParams, PParams]]] = ???
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[Workload[Payload, SParams, PParams]] = event match {
     case evt: Created => create(
       WorkloadDoc(
           _id = WorkloadId()
         , name = evt.name
+        , factoryType = metadata.factoryType
         , schedulerParams = evt.schedulerParams
         , processorParams = evt.processorParams
       ), evt, parent)

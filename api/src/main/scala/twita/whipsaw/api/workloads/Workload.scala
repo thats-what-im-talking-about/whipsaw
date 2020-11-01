@@ -2,6 +2,8 @@ package twita.whipsaw.api.workloads
 
 import java.util.UUID
 
+import enumeratum._
+import enumeratum.PlayJsonEnum
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
 import play.api.libs.json.JsResult
@@ -13,9 +15,8 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
-import twita.whipsaw.api.engine.ProcessingStatus
-import twita.whipsaw.api.engine.SchedulingStatus
-import twita.whipsaw.api.engine.SchedulingStatus.Completed
+import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.api.workloads.SchedulingStatus.Completed
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -31,6 +32,27 @@ object WorkloadId {
 
     override def writes(o: WorkloadId): JsValue = JsString(o.value)
   }
+}
+
+
+
+sealed trait SchedulingStatus extends EnumEntry
+object SchedulingStatus extends Enum[SchedulingStatus] with PlayJsonEnum[SchedulingStatus] {
+  val values = findValues
+
+  case object Init extends SchedulingStatus
+  case object Running extends SchedulingStatus
+  case object Completed extends SchedulingStatus
+}
+
+sealed trait ProcessingStatus extends EnumEntry
+object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[ProcessingStatus] {
+  val values = findValues
+
+  case object Init extends ProcessingStatus
+  case object Running extends ProcessingStatus
+  case object Waiting extends ProcessingStatus
+  case object Completed extends ProcessingStatus
 }
 
 /**
@@ -50,6 +72,7 @@ case class Metadata[Payload, SParams, PParams](
     scheduler: SParams => Scheduler[Payload]
   , processor: PParams => Processor[Payload]
   , payloadUniqueConstraint: Seq[String]
+  , factoryType: String
 ) {
   assert(payloadUniqueConstraint.size > 0,
     "In order for a scheduler to be restartable, you must specify the payload fields used to determine uniqueness.")
@@ -93,6 +116,8 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def scheduler: Scheduler[Payload]
   def processor: Processor[Payload]
   def metadata: Metadata[Payload, SParams, PParams]
+  def schedulingStatus: SchedulingStatus
+  def processingStatus: ProcessingStatus
 
   // This is needed to prevent a compiler error that deals with the generic expansion of the various events that
   // are part of this trait:
@@ -107,17 +132,18 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
         .recoverWith {
           case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None)
         }
-    }).map(_.foldLeft(Completed(0,0)) {
-      case (result, Some(item)) => Completed(result.created+1, result.dups)
-      case (result, None) => Completed(result.created, result.dups+1)
+    }).map(_.foldLeft(Completed) {
+      // TODO: find another way to report back # scheduled.
+      case (result, Some(item)) => Completed
+      case (result, None) => Completed
     })
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class ScheduleStatusUpdated(status: SchedulingStatus) extends Event
+  case class ScheduleStatusUpdated(schedulingStatus: SchedulingStatus) extends Event
   object ScheduleStatusUpdated { implicit val fmt = Json.format[ScheduleStatusUpdated] }
 
-  case class ProcessingStatusUpdated(status: ProcessingStatus) extends Event
+  case class ProcessingStatusUpdated(processingStatus: ProcessingStatus) extends Event
   object ProcessingStatusUpdated { implicit val fmt = Json.format[ProcessingStatusUpdated] }
 }
 
@@ -127,11 +153,8 @@ extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def ppFmt: OFormat[PParams]
   override type AllowedEvent = Event
 
-  def getRunnable: Future[List[Workload[Payload, SParams, PParams]]]
-
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
   object Created { implicit val fmt = Json.format[Created] }
 }
-
