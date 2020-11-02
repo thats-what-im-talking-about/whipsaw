@@ -11,6 +11,7 @@ import play.api.libs.json.OFormat
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
+import reactivemongo.play.json.compat._
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.BaseDoc
@@ -123,16 +124,17 @@ class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload,
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  override def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]] =
-  val q = Json.obj("runAt" -> Json.obj("$lt" -> Json.toJson(Instant.now)))
-  for {
-    coll <- objCollectionFt
-  } yield {
-    coll.find(q ++ notDeletedConstraint, projection = Some(Json.obj()))
-      .sort(Json.obj("runAt" -> 1))
-      .cursor[WorkItemDoc[Payload]]()
-      .documentSource()
-      .map(doc => cons(Right(doc)))
+  override def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]] = {
+    val q = Json.obj("runAt" -> Json.obj("$lt" -> Json.toJson(Instant.now)))
+    for {
+      coll <- objCollectionFt
+    } yield {
+      coll.find(q ++ notDeletedConstraint, projection = Some(Json.obj()))
+        .sort(Json.obj("runAt" -> 1))
+        .cursor[WorkItemDoc[Payload]]()
+        .documentSource()
+        .map(doc => cons(Right(doc)))
+    }
   }
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = event match {

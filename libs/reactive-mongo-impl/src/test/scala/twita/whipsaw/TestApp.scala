@@ -2,19 +2,24 @@ package twita.whipsaw
 
 import akka.actor.ActorSystem
 import akka.stream.Materializer
+import enumeratum._
 import play.api.libs.json.Json
+import play.api.libs.json.OFormat
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.dominion.impl.reactivemongo.MongoContext
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.WorkloadRegistry
+import twita.whipsaw.api.engine.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.reactivemongo.impl.MongoWorkloadFactory
+import twita.whipsaw.reactivemongo.impl.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -22,6 +27,8 @@ import scala.concurrent.Future
 object TestApp {
   implicit val testAppActorSystem = ActorSystem("TestApp")
   implicit val materializer = Materializer(testAppActorSystem)
+  implicit val mongoContext = new DevMongoContextImpl
+  implicit val executionContext = testAppActorSystem.dispatcher
 
   case class SamplePayload(
       email: String
@@ -62,21 +69,27 @@ object TestApp {
       ))
   }
 
-  val sampleMetadata = Metadata(
-      new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams)
-    , new TestApp.SampleWorkItemProcessor(_: TestApp.SampleProcessorParams)
-    , Seq("email")
-    , "Sample"
-  )
+  sealed trait SampleRegistryEntry extends WorkloadRegistryEntry with EnumEntry
 
-  object SampleWorkloadRegistry extends WorkloadRegistry {
-    implicit val mongoContext = new DevMongoContextImpl()
-    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] =
-      rw.factoryType match {
-      case "Sample" => new MongoWorkloadFactory(sampleMetadata).get(byId(rw.id)).map {
-        case Some(w) => w
-        case None => throw new RuntimeException("no can do")
-      }
+  object SampleRegistryEntry extends Enum[SampleRegistryEntry] with WorkloadRegistry {
+    val values = findValues
+
+    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] = {
+      SampleRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
+    }
+
+    override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](md: Metadata[Payload, SParams, PParams])(
+      implicit executionContext: ExecutionContext
+    ): WorkloadFactory[Payload, SParams, PParams] = values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
+
+    case object Sample extends MongoWorkloadRegistryEntry with SampleRegistryEntry {
+      lazy val metadata = Metadata(
+          new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams)
+        , new TestApp.SampleWorkItemProcessor(_: TestApp.SampleProcessorParams)
+        , Seq("email")
+        , entryName
+      )
+      lazy val factory: WorkloadFactory[_,_,_] = factoryForMetadata(metadata)
     }
   }
 }

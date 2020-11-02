@@ -2,8 +2,10 @@ package twita.whipsaw.reactivemongo.impl
 
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
+import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
+import twita.dominion.api.DomainObjectGroup.byId
 import twita.dominion.impl.reactivemongo.BaseDoc
 import twita.dominion.impl.reactivemongo.Empty
 import twita.dominion.impl.reactivemongo.MongoContext
@@ -12,12 +14,30 @@ import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.RegisteredWorkloads
+import twita.whipsaw.api.engine.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.EventId
+import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.SchedulingStatus
+import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+
+abstract class MongoWorkloadRegistryEntry(implicit mongoContext: MongoContext) {
+  self: WorkloadRegistryEntry =>
+
+  override def forWorkloadId(id: WorkloadId)(implicit executionContext: ExecutionContext):Future[Workload[_,_,_]] =
+    factory.get(byId(id)).map {
+      case Some(w) => w
+      case None => throw new RuntimeException("no can do")
+    }
+
+  override def factoryForMetadata[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+    md: Metadata[Payload, SParams, PParams]
+  )(implicit executionContext: ExecutionContext): WorkloadFactory[Payload, SParams, PParams] = new MongoWorkloadFactory(md)
+}
 
 case class RegisteredWorkloadDoc(
     _id: WorkloadId
