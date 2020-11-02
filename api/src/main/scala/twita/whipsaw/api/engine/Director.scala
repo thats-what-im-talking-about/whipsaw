@@ -1,9 +1,8 @@
 package twita.whipsaw.api.engine
 
-import twita.dominion.api.DomainObjectGroup.byId
+import akka.stream.Materializer
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
-import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
@@ -20,7 +19,7 @@ trait Director {
     */
   def managers: Managers
 
-  def delegateRunnableWorkloads(): Future[Seq[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
+  def delegateRunnableWorkloads()(implicit m: Materializer): Future[Seq[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable

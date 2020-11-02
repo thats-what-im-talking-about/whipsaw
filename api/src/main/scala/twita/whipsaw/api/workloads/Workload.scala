@@ -2,6 +2,8 @@ package twita.whipsaw.api.workloads
 
 import java.util.UUID
 
+import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import enumeratum._
 import enumeratum.PlayJsonEnum
 import play.api.libs.json.Format
@@ -126,17 +128,15 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   // [error]  required: qual$1.AllowedEvent
   private lazy val workItemFactory = workItems
 
-  def schedule()(implicit ec: ExecutionContext): Future[SchedulingStatus] =
-    scheduler.schedule().flatMap(Future.traverse(_) { payload =>
-      workItemFactory(workItemFactory.WorkItemAdded(payload)).map(Some(_))
-        .recoverWith {
-          case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None)
-        }
-    }).map(_.foldLeft(Completed) {
-      // TODO: find another way to report back # scheduled.
-      case (result, Some(item)) => Completed
-      case (result, None) => Completed
-    })
+  def schedule()(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
+    for {
+      payloadIterator <- scheduler.schedule()
+      source = Source.fromIterator(() => payloadIterator).mapAsyncUnordered(10) { payload =>
+        workItemFactory(workItemFactory.WorkItemAdded(payload)).map(Option(_))
+          .recoverWith { case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None) }
+      }
+      result <- source.run().map(_ => SchedulingStatus.Completed)
+    } yield result
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 

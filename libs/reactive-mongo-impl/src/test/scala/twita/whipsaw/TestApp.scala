@@ -1,14 +1,28 @@
 package twita.whipsaw
 
+import akka.actor.ActorSystem
+import akka.stream.Materializer
 import play.api.libs.json.Json
+import twita.dominion.api.DomainObjectGroup.byId
+import twita.dominion.impl.reactivemongo.DevMongoContextImpl
+import twita.dominion.impl.reactivemongo.MongoContext
+import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.api.engine.WorkloadRegistry
 import twita.whipsaw.api.workloads.ItemResult
+import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
+import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.reactivemongo.impl.MongoWorkloadFactory
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 object TestApp {
+  implicit val testAppActorSystem = ActorSystem("TestApp")
+  implicit val materializer = Materializer(testAppActorSystem)
+
   case class SamplePayload(
       email: String
     , target: String
@@ -46,5 +60,23 @@ object TestApp {
         , touchedCount = payload.touchedCount + 1
       )
       ))
+  }
+
+  val sampleMetadata = Metadata(
+      new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams)
+    , new TestApp.SampleWorkItemProcessor(_: TestApp.SampleProcessorParams)
+    , Seq("email")
+    , "Sample"
+  )
+
+  object SampleWorkloadRegistry extends WorkloadRegistry {
+    implicit val mongoContext = new DevMongoContextImpl()
+    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] =
+      rw.factoryType match {
+      case "Sample" => new MongoWorkloadFactory(sampleMetadata).get(byId(rw.id)).map {
+        case Some(w) => w
+        case None => throw new RuntimeException("no can do")
+      }
+    }
   }
 }

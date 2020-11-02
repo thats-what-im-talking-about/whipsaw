@@ -4,7 +4,6 @@ import twita.whipsaw.api.engine.Director
 import twita.whipsaw.api.engine.Managers
 import twita.whipsaw.api.engine.RegisteredWorkloads
 import twita.whipsaw.api.engine.WorkloadRegistry
-import twita.whipsaw.api.workloads.WorkloadFactory
 
 import scala.concurrent.ExecutionContext
 

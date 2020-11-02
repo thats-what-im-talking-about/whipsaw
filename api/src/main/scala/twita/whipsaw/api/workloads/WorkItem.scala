@@ -3,6 +3,9 @@ package twita.whipsaw.api.workloads
 import java.time.Instant
 import java.util.UUID
 
+import akka.NotUsed
+import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
 import play.api.libs.json.JsResult
@@ -81,7 +84,7 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  def runnableItemList: Future[List[WorkItem[Payload]]]
+  def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
@@ -91,4 +94,5 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
 
 object WorkItems {
   case class RunnableAt(runAt: Instant = Instant.now) extends Query
+  object RunnableAt { implicit val fmt = Json.format[RunnableAt] }
 }

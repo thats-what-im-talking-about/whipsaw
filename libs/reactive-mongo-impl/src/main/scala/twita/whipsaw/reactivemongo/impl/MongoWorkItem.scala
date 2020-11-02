@@ -2,10 +2,13 @@ package twita.whipsaw.reactivemongo.impl
 
 import java.time.Instant
 
+import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
+import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
 import twita.dominion.api.BaseEvent
@@ -17,7 +20,6 @@ import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.whipsaw.api.workloads.EventId
-import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.WorkItemId
 import twita.whipsaw.api.workloads.WorkItems
@@ -121,7 +123,17 @@ class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload,
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  override def runnableItemList: Future[List[WorkItem[Payload]]] = list(WorkItems.RunnableAt())
+  override def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]] =
+  val q = Json.obj("runAt" -> Json.obj("$lt" -> Json.toJson(Instant.now)))
+  for {
+    coll <- objCollectionFt
+  } yield {
+    coll.find(q ++ notDeletedConstraint, projection = Some(Json.obj()))
+      .sort(Json.obj("runAt" -> 1))
+      .cursor[WorkItemDoc[Payload]]()
+      .documentSource()
+      .map(doc => cons(Right(doc)))
+  }
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]): Future[WorkItem[Payload]] = event match {
     case evt: WorkItemAdded =>
