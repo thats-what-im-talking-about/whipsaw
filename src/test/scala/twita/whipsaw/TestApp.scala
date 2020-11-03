@@ -5,9 +5,7 @@ import akka.stream.Materializer
 import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
-import twita.dominion.api.DomainObjectGroup.byId
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
-import twita.dominion.impl.reactivemongo.MongoContext
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.WorkloadRegistry
 import twita.whipsaw.api.engine.WorkloadRegistryEntry
@@ -17,8 +15,6 @@ import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadFactory
-import twita.whipsaw.api.workloads.WorkloadId
-import twita.whipsaw.reactivemongo.impl.MongoWorkloadFactory
 import twita.whipsaw.reactivemongo.impl.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
