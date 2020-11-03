@@ -1,4 +1,4 @@
-package twita.whipsaw.reactivemongo.impl
+package twita.whipsaw.impl.reactivemongo
 
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json

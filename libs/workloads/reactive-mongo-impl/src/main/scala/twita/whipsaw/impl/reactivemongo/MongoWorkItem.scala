@@ -1,4 +1,4 @@
-package twita.whipsaw.reactivemongo.impl
+package twita.whipsaw.impl.reactivemongo
 
 import java.time.Instant
 

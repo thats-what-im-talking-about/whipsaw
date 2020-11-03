@@ -15,7 +15,7 @@ import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadFactory
-import twita.whipsaw.reactivemongo.impl.MongoWorkloadRegistryEntry
+import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
