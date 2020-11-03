@@ -1,4 +1,4 @@
-package twita.whipsaw.engine.local
+package twita.whipsaw.impl.engine.localFunctions
 
 import twita.whipsaw.api.engine.Manager
 import twita.whipsaw.api.engine.Managers

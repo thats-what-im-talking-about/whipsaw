@@ -5,6 +5,7 @@ import org.scalatest.matchers._
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.impl.engine.localFunctions.LocalDirector
 import twita.whipsaw.impl.reactivemongo.MongoRegisteredWorkloads
 
 class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
