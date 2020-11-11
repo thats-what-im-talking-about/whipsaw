@@ -9,7 +9,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 class LocalManager(
-    override val workload: Workload[_, _, _]
+  override val workload: Workload[_, _, _]
 )(implicit val executionContext: ExecutionContext) extends Manager {
   override def workers: Workers = new LocalWorkers
 }

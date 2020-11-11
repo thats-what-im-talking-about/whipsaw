@@ -56,13 +56,16 @@ object TestApp {
 
   // create a processor
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
-    override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] =
-      Future.successful((
-        ItemResult.Done, payload.copy(
+    override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] = Future {
+      println("started processing")
+      Thread.sleep(1000)
+      val result = (ItemResult.Done, payload.copy(
         target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
         , touchedCount = payload.touchedCount + 1
-      )
       ))
+      println("finished processing")
+      result
+    }
   }
 
   sealed trait SampleRegistryEntry extends WorkloadRegistryEntry with EnumEntry

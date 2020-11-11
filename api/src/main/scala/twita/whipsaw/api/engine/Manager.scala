@@ -1,12 +1,12 @@
 package twita.whipsaw.api.engine
 
+import java.time.Instant
+
 import akka.stream.Materializer
-import akka.stream.scaladsl.Sink
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
 
-import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
@@ -17,6 +17,7 @@ trait Manager {
 
   def executeWorkload()(implicit m: Materializer): Future[(SchedulingStatus, ProcessingStatus)] = {
     val wl = workload // transforms workload into a val, fixes compiler error
+
     val scheduledItemsFt = workload.schedulingStatus match {
       case SchedulingStatus.Completed => Future.successful(SchedulingStatus.Completed)
       case _ => for {
@@ -31,9 +32,10 @@ trait Manager {
       case _ =>
         (for {
           running <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
-          runnableItems <- wl.workItems.runnableItemSource
-          result <- runnableItems.mapAsyncUnordered(10) { item => workers.forItem(item) }
-            .runFoldAsync(0) { case (result, worker) => worker.process().map(_ => result+1) }
+          runnableItems <- wl.workItems.runnableItemSource(Instant.now, workload.batchSize)
+          result <- runnableItems
+            .mapAsyncUnordered(workload.desiredNumWorkers)(workers.forItem(_).flatMap(_.process()))
+            .runFold(0) { case (result, _) => result + 1 }
           _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Completed))
         } yield result).flatMap { numProcessed =>
           println(s"processed ${numProcessed} entries")

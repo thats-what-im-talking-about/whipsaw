@@ -84,7 +84,7 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
+  def runnableItemSource(runAt: Instant, batchSize: Int)(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 

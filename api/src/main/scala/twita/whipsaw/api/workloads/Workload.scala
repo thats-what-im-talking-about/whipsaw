@@ -120,6 +120,8 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def metadata: Metadata[Payload, SParams, PParams]
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
+  def batchSize: Int = 100
+  def desiredNumWorkers: Int = 50
 
   // This is needed to prevent a compiler error that deals with the generic expansion of the various events that
   // are part of this trait:

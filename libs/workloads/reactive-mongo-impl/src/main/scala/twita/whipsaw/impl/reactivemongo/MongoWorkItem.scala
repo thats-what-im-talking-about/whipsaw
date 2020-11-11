@@ -124,12 +124,13 @@ class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload,
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  override def runnableItemSource(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]] = {
+  override def runnableItemSource(runAt: Instant, batchSize: Int)(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]] = {
     val q = Json.obj("runAt" -> Json.obj("$lt" -> Json.toJson(Instant.now)))
     for {
       coll <- objCollectionFt
     } yield {
       coll.find(q ++ notDeletedConstraint, projection = Some(Json.obj()))
+        .batchSize(100)
         .sort(Json.obj("runAt" -> 1))
         .cursor[WorkItemDoc[Payload]]()
         .documentSource()

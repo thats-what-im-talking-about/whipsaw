@@ -20,7 +20,7 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
       createdWorkload <- workloadFactory(
         workloadFactory.Created(
           name = "Sample Workload"
-          , schedulerParams = TestApp.SampleSchedulerParams(10)
+          , schedulerParams = TestApp.SampleSchedulerParams(1000)
           , processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
         )
       )
@@ -31,11 +31,11 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   }
 
   "director" should "be able to execute a runnable worklaod" in {
-    for {
-      result <- director.delegateRunnableWorkloads()
-    } yield {
-      println(result)
-      assert(result.size == 1)
-    }
+      for {
+        result <- director.delegateRunnableWorkloads()
+      } yield {
+        println(result)
+        assert(result.size == 1)
+      }
   }
 }
