@@ -1,5 +1,6 @@
 package twita.whipsaw.api.workloads
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.stream.Materializer
@@ -18,6 +19,7 @@ import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.api.workloads.ItemResult.Retry
 import twita.whipsaw.api.workloads.SchedulingStatus.Completed
 
 import scala.concurrent.ExecutionContext
@@ -57,6 +59,19 @@ object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[Process
   case object Completed extends ProcessingStatus
 }
 
+trait RetryPolicy {
+  def retry[Payload](item: WorkItem[Payload]): Future[WorkItem[Payload]]
+}
+
+case class MaxRetriesWithExponentialBackoff(maxRetries: Int) extends RetryPolicy {
+  override def retry[Payload](item: WorkItem[Payload]): Future[WorkItem[Payload]] = {
+    if(item.retryCount < maxRetries)
+      item(item.RetryScheduled(at = Instant.now.plusSeconds(item.retryCount^2 * 60), tryNumber = item.retryCount))
+    else
+      item(item.MaxRetriesReached())
+  }
+}
+
 /**
   * Workload instances will always be created with an instance of this class which provides the factories that create
   * the correct Scheduler and Processor for this workload.
@@ -75,6 +90,7 @@ case class Metadata[Payload, SParams, PParams](
   , processor: PParams => Processor[Payload]
   , payloadUniqueConstraint: Seq[String]
   , factoryType: String
+  , retryPolicy: RetryPolicy = MaxRetriesWithExponentialBackoff(3)
 ) {
   assert(payloadUniqueConstraint.size > 0,
     "In order for a scheduler to be restartable, you must specify the payload fields used to determine uniqueness.")

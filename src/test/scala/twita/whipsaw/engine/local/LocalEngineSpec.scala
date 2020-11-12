@@ -20,7 +20,7 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
       createdWorkload <- workloadFactory(
         workloadFactory.Created(
           name = "Sample Workload"
-          , schedulerParams = TestApp.SampleSchedulerParams(1000)
+          , schedulerParams = TestApp.SampleSchedulerParams(10000)
           , processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
         )
       )

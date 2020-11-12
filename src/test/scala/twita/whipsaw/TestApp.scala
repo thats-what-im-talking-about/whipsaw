@@ -19,6 +19,7 @@ import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.util.Random
 
 object TestApp {
   implicit val testAppActorSystem = ActorSystem("TestApp")
@@ -57,14 +58,14 @@ object TestApp {
   // create a processor
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
     override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] = Future {
-      println("started processing")
-      Thread.sleep(1000)
-      val result = (ItemResult.Done, payload.copy(
-        target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
-        , touchedCount = payload.touchedCount + 1
-      ))
-      println("finished processing")
-      result
+      Thread.sleep(100)
+
+      if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)
+      else
+        (ItemResult.Done, payload.copy(
+          target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
+          , touchedCount = payload.touchedCount + 1
+        ))
     }
   }
 

@@ -35,8 +35,10 @@ case class WorkItemDoc[Payload] (
   , workloadId: WorkloadId
   , payload: Payload
   , runAt: Option[Instant] = None
+  , retryCount: Int = 0
   , startedProcessingAt: Option[Instant] = None
   , finishedProcessingAt: Option[Instant] = None
+  , errorStoppedProcessingAt: Option[Instant] = None
 ) extends BaseDoc[WorkItemId]
 object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]] }
 
@@ -63,24 +65,36 @@ class MongoWorkItem[Payload: OFormat](
 
   override def runAt: Option[Instant] = obj.runAt
   override def payload: Payload = obj.payload
+  override def retryCount: Int = obj.retryCount
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]) = event match {
     case evt: StartedProcessing =>
       updateVerbose(
         Json.obj(
             "$set" -> Json.obj("startedProcessingAt" -> Json.toJson(evt.at))
-          , "$unset" -> Json.obj("runAt" -> 1)
+          , "$unset" -> Json.obj("runAt" -> 1, "finishedProcessingAt" -> 1)
         ), evt, parent
       )
     case evt: FinishedProcessing =>
       updateVerbose(
         Json.obj(
-          "$set" ->
-            Json.obj(
+            "$set" -> Json.obj(
                 "payload" -> Json.toJsObject(evt.newPayload)
               , "finishedProcessingAt" -> Json.toJson(evt.at)
-            )
+              , "retryCount" -> Json.toJson(0)
+              )
         ), evt, parent
+      )
+    case evt: RetryScheduled =>
+      updateVerbose(
+        Json.obj(
+            "$set" -> Json.obj("runAt" -> Json.toJson(evt.at))
+          , "$inc" -> Json.obj("retryCount" -> 1)
+        ), evt, parent
+      )
+    case evt: MaxRetriesReached =>
+      updateVerbose(
+        Json.obj("$set" -> Json.obj("errorStoppedProcessingAt" -> Json.toJson(Instant.now))), evt, parent
       )
   }
 }

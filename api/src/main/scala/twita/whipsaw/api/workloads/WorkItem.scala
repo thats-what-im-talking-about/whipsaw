@@ -3,7 +3,6 @@ package twita.whipsaw.api.workloads
 import java.time.Instant
 import java.util.UUID
 
-import akka.NotUsed
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
@@ -18,6 +17,9 @@ import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.Query
+import twita.dominion.api.EmptyEventFmt
+import twita.whipsaw.api.workloads.ItemResult.Done
+import twita.whipsaw.api.workloads.ItemResult.Retry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -56,6 +58,14 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   def runAt: Option[Instant]
 
   /**
+    * @return Return the number of consecutive times that this item has been tried.  Note that when an item
+    *         successfully processes the retry count will always be reset to 0.  So, for example, if an item fails
+    *         and is retried but then is successfully processed and rescheduled, the event history will contain the
+    *         failures but the current retry count will be reset back to 0.
+    */
+  def retryCount: Int
+
+  /**
     * @return Implementer-provided description of this work item.
     */
   def payload: Payload
@@ -63,9 +73,12 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   protected def workload: Workload[Payload, _, _]
 
   def process()(implicit ec: ExecutionContext): Future[ItemResult] = for {
-    started <- apply(StartedProcessing())
+    started <- this(StartedProcessing())
     (itemResult, updatedPayload) <- workload.processor.process(payload)
-    result <- apply(FinishedProcessing(updatedPayload, itemResult))
+    result <- itemResult match {
+      case Done => this(FinishedProcessing(updatedPayload, itemResult))
+      case Retry(t) => workload.metadata.retryPolicy.retry(this)
+    }
   } yield itemResult
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
@@ -75,6 +88,12 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
 
   case class FinishedProcessing(newPayload: Payload, result: ItemResult, at: Instant = Instant.now) extends Event
   object FinishedProcessing { implicit val fmt = Json.format[FinishedProcessing] }
+
+  case class RetryScheduled(at: Instant, tryNumber: Int) extends Event
+  object RetryScheduled { implicit val fmt = Json.format[RetryScheduled] }
+
+  case class MaxRetriesReached() extends Event
+  object MaxRetriesReached { implicit val fmt = EmptyEventFmt(MaxRetriesReached()) }
 }
 
 trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
