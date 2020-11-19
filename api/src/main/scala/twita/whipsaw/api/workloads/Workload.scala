@@ -5,8 +5,8 @@ import java.util.UUID
 
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import enumeratum._
 import enumeratum.PlayJsonEnum
+import enumeratum._
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
 import play.api.libs.json.JsResult
@@ -18,9 +18,6 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.workloads.ItemResult.Retry
-import twita.whipsaw.api.workloads.SchedulingStatus.Completed
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -66,7 +63,7 @@ trait RetryPolicy {
 case class MaxRetriesWithExponentialBackoff(maxRetries: Int) extends RetryPolicy {
   override def retry[Payload](item: WorkItem[Payload]): Future[WorkItem[Payload]] = {
     if(item.retryCount < maxRetries)
-      item(item.RetryScheduled(at = Instant.now.plusSeconds(item.retryCount^2 * 60), tryNumber = item.retryCount))
+      item(item.RetryScheduled(at = Instant.now.plusSeconds(2^item.retryCount * 60), tryNumber = item.retryCount))
     else
       item(item.MaxRetriesReached())
   }
