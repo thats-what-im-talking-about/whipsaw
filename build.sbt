@@ -22,6 +22,8 @@ lazy val api = project in file("api")
 
 lazy val `workload-reactive-mongo-impl` = (project in file("libs/workloads/reactive-mongo-impl")).dependsOn(api)
 
+lazy val `workload-in-memory-impl` = (project in file("libs/workloads/in-memory-impl")).dependsOn(api)
+
 lazy val `engine-local-functions` = (project in file("libs/engines/local-functions")).dependsOn(api)
 
 lazy val root = (project in file("."))
