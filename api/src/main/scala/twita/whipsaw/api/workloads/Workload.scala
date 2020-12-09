@@ -35,8 +35,6 @@ object WorkloadId {
   }
 }
 
-
-
 sealed trait SchedulingStatus extends EnumEntry
 object SchedulingStatus extends Enum[SchedulingStatus] with PlayJsonEnum[SchedulingStatus] {
   val values = findValues

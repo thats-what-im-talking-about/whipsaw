@@ -21,10 +21,10 @@ import scala.concurrent.Future
   */
 trait WorkloadRegistryEntry {
   /**
-    * @return A {{WorkloadFactory}} instance that may be used to create a new instance of {{Workload}} represented
+    * @return A {{WorkloadFactory}} instance that may be used to create a new instance of the {{Workload}} represented
     *         by this entry.
     */
-  def factory: WorkloadFactory[_,_,_]
+  def factory: WorkloadFactory[_, _, _]
 
   /**
     * @return The {{Metadata}} instance that corresponds to the {{Workload}} represented by this entry.  {{Workload}}
