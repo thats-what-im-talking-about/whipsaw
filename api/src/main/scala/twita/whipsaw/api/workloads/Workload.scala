@@ -54,43 +54,6 @@ object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[Process
   case object Completed extends ProcessingStatus
 }
 
-trait RetryPolicy {
-  def retry[Payload](item: WorkItem[Payload]): Future[WorkItem[Payload]]
-}
-
-case class MaxRetriesWithExponentialBackoff(maxRetries: Int) extends RetryPolicy {
-  override def retry[Payload](item: WorkItem[Payload]): Future[WorkItem[Payload]] = {
-    if(item.retryCount < maxRetries)
-      item(item.RetryScheduled(at = Instant.now.plusSeconds(2^item.retryCount * 60), tryNumber = item.retryCount))
-    else
-      item(item.MaxRetriesReached())
-  }
-}
-
-/**
-  * Workload instances will always be created with an instance of this class which provides the factories that create
-  * the correct Scheduler and Processor for this workload.
-  * @param scheduler {{RegisteredScheduler}} instance which, given an instance of {{SParams}} will create a new
-  *                  {{WorkloadScheduler}} instance for use by this {{Workload}}.
-  * @param processor {{RegisteredProcessor}} instance which, given an instance of {{PParams}} will create a new
-  *                  {{WorkItemProcessor}} instance for use by this {{Workload}}.
-  * @param payloadUniqueConstraint List of fields <b>in the Payload</b> that will be used to create the uniqueness
-  *                                constraint for workItems.
-  * @tparam Payload
-  * @tparam SParams
-  * @tparam PParams
-  */
-case class Metadata[Payload, SParams, PParams](
-    scheduler: SParams => Scheduler[Payload]
-  , processor: PParams => Processor[Payload]
-  , payloadUniqueConstraint: Seq[String]
-  , factoryType: String
-  , retryPolicy: RetryPolicy = MaxRetriesWithExponentialBackoff(3)
-) {
-  assert(payloadUniqueConstraint.size > 0,
-    "In order for a scheduler to be restartable, you must specify the payload fields used to determine uniqueness.")
-}
-
 /**
   * Defines the contracts for describing a generic Payload in this system.  A Workload has 3 different parts that
   * need to be known in order for the Workload to run:
