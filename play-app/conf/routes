@@ -1,0 +1,11 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# An example controller showing a sample home page
+GET     /                           twita.whipsaw.play.controllers.HomeController.index
+GET     /ws                         twita.whipsaw.play.controllers.HomeController.websocket
+GET     /send                       twita.whipsaw.play.controllers.HomeController.send(s)
+
+# Map static resources from the /public folder to the /assets URL path
+GET     /assets/*file               controllers.Assets.versioned(file)

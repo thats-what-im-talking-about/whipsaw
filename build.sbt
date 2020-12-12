@@ -7,9 +7,10 @@ name := "whipsaw"
 publishMavenStyle := false
 
 scalacOptions in ThisBuild ++= Seq(
-    "-unchecked"
+    "-feature"
+  , "-unchecked"
   , "-deprecation"
-  //, "-language:higherKinds"
+  //, "-Xfatal-warnings"
 )
 
 libraryDependencies ++= Seq(
@@ -25,6 +26,9 @@ lazy val `workload-reactive-mongo-impl` = (project in file("libs/workloads/react
 lazy val `workload-in-memory-impl` = (project in file("libs/workloads/in-memory-impl")).dependsOn(api)
 
 lazy val `engine-local-functions` = (project in file("libs/engines/local-functions")).dependsOn(api)
+
+lazy val `play-app` = (project in file("play-app"))
+  .enablePlugins(PlayScala)
 
 lazy val root = (project in file("."))
   .dependsOn( api
