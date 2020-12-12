@@ -33,15 +33,11 @@ class HomeController (cc: ControllerComponents) (implicit assetsFinder: AssetsFi
   }
 
   val src: Source[String, ActorRef] = Source.actorRef(
-    completionMatcher = {
-      case Done =>
-        // complete stream immediately if we send it Done
-        CompletionStrategy.immediately
-    },
-    // never fail the stream because of a message
+    completionMatcher = { case Done => CompletionStrategy.immediately },
     failureMatcher = PartialFunction.empty,
     bufferSize = 100,
-    overflowStrategy = OverflowStrategy.dropHead)
+    overflowStrategy = OverflowStrategy.dropHead
+  )
 
   lazy val (actor, newSrc) = src.preMaterialize()
 

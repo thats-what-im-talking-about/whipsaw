@@ -38,4 +38,5 @@ lazy val root = (project in file("."))
   .aggregate( api
             , `workload-reactive-mongo-impl`
             , `engine-local-functions`
+            , `play-app`
             )
