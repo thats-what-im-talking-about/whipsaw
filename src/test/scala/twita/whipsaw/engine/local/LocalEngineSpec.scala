@@ -4,13 +4,17 @@ import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
+import twita.whipsaw.api.engine.ConsoleMonitor
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.impl.engine.localFunctions.LocalDirector
 import twita.whipsaw.impl.reactivemongo.MongoRegisteredWorkloads
 
 class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   import TestApp.materializer
-  implicit val mongoContext = new DevMongoContextImpl
+  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext {
+    override val monitor = Some(new ConsoleMonitor)
+  }
   val director = new LocalDirector(TestApp.SampleRegistryEntry, new MongoRegisteredWorkloads())
   val workloadFactory = director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
   var workloadId: WorkloadId = _

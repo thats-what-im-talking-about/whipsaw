@@ -8,6 +8,7 @@ import play.api.libs.json.Format
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
+import play.api.libs.json.OWrites
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
@@ -20,11 +21,13 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
+import twita.whipsaw.api.engine.WorkloadEvent
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.WorkItemId
 import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
@@ -43,20 +46,34 @@ case class WorkItemDoc[Payload] (
 object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]] }
 
 trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Payload], WorkItemDoc[Payload]] {
-  implicit def mongoContext: MongoContext
+  implicit def mongoContext: MongoContext with WorkloadContext
   implicit def pFmt: OFormat[Payload]
   protected def workload: Workload[Payload, _, _]
   override protected lazy val collectionName = s"workloads.${workload.id.value}"
   override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Payload]] => WorkItem[Payload] = o => new MongoWorkItem(o, workload)
 
-  override lazy val eventLogger = new MongoObjectEventStackLogger(50)
+  override lazy val eventLogger = new MonitorLogger
+
+  class MonitorLogger extends MongoObjectEventStackLogger(50) {
+    override def log[E <: AllowedEvent: OWrites](
+        eventMetaData: EventMetaData
+      , event: E
+      , parent: Option[BaseEvent[EventId]]
+    ): Future[Unit] = {
+      (mongoContext.monitor, event) match {
+        case (Some(monitor), evt: WorkloadEvent) => monitor.report(evt)
+        case _ => ()
+      }
+      super.log(eventMetaData, event, parent)
+    }
+  }
 }
 
 class MongoWorkItem[Payload: OFormat](
     protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]]
   , protected val workload: Workload[Payload, _, _]
 )(
-  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
+  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext with WorkloadContext
 ) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
   with WorkItemDescriptor[Payload]
   with WorkItem[Payload]
@@ -100,7 +117,7 @@ class MongoWorkItem[Payload: OFormat](
 }
 
 class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload, _, _])(
-  implicit executionContext: ExecutionContext, val mongoContext: MongoContext
+  implicit executionContext: ExecutionContext, val mongoContext: MongoContext with WorkloadContext
 )
   extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
     with WorkItemDescriptor[Payload]

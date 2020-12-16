@@ -19,13 +19,14 @@ import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-abstract class MongoWorkloadRegistryEntry(implicit mongoContext: MongoContext) {
+abstract class MongoWorkloadRegistryEntry(implicit mongoContext: MongoContext with WorkloadContext) {
   self: WorkloadRegistryEntry =>
 
   override def forWorkloadId(id: WorkloadId)(implicit executionContext: ExecutionContext):Future[Workload[_,_,_]] =

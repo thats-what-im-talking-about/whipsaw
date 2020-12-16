@@ -6,6 +6,7 @@ import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
+import twita.whipsaw.api.engine.ConsoleMonitor
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.WorkloadRegistry
 import twita.whipsaw.api.engine.WorkloadRegistryEntry
@@ -14,6 +15,7 @@ import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 
@@ -24,7 +26,9 @@ import scala.util.Random
 object TestApp {
   implicit val testAppActorSystem = ActorSystem("TestApp")
   implicit val materializer = Materializer(testAppActorSystem)
-  implicit val mongoContext = new DevMongoContextImpl
+  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext {
+    override val monitor = Some(new ConsoleMonitor)
+  }
   implicit val executionContext = testAppActorSystem.dispatcher
 
   case class SamplePayload(

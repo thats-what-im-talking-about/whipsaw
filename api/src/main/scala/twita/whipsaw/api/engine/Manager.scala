@@ -6,14 +6,35 @@ import akka.stream.Materializer
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+
+trait WorkloadEvent
+
+/**
+  * Interface that knows how to receive all of the events that are applied to a particular workload.
+  */
+trait WorkloadMonitor {
+  def report(workloadEvent: WorkloadEvent): Unit
+}
+
+class ConsoleMonitor extends WorkloadMonitor {
+  override def report(workloadEvent: WorkloadEvent): Unit = println(workloadEvent)
+}
 
 trait Manager {
   implicit def executionContext: ExecutionContext
   def workload: Workload[_, _, _]
   def workers: Workers
+
+  /**
+    * Interface that allows external observers to subscribe to all of the events that are applied to this Workload.
+    *
+    * @param monitor Object to which events in this Workload will be sent.
+    */
+  def watch(monitor: WorkloadMonitor)
 
   def executeWorkload()(implicit m: Materializer): Future[(SchedulingStatus, ProcessingStatus)] = {
     val wl = workload // transforms workload into a val, fixes compiler error
@@ -59,4 +80,5 @@ trait Manager {
 
 trait Managers {
   def forWorkload(workload: Workload[_, _, _]): Future[Manager]
+  def forWorkloadId(workloadId: WorkloadId): Future[Manager]
 }

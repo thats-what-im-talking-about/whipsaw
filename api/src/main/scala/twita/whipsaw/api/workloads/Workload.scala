@@ -18,6 +18,8 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.whipsaw.api.engine.WorkloadEvent
+import twita.whipsaw.api.engine.WorkloadMonitor
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -52,6 +54,10 @@ object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[Process
   case object Running extends ProcessingStatus
   case object Waiting extends ProcessingStatus
   case object Completed extends ProcessingStatus
+}
+
+trait WorkloadContext {
+  def monitor: Option[WorkloadMonitor] = None
 }
 
 /**
@@ -129,7 +135,7 @@ extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def ppFmt: OFormat[PParams]
   override type AllowedEvent = Event
 
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator with WorkloadEvent
 
   case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
   object Created { implicit val fmt = Json.format[Created] }
