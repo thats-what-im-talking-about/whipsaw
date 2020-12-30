@@ -56,9 +56,7 @@ object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[Process
   case object Completed extends ProcessingStatus
 }
 
-trait WorkloadContext {
-  def monitor: Option[WorkloadMonitor] = None
-}
+trait WorkloadContext
 
 /**
   * Defines the contracts for describing a generic Payload in this system.  A Workload has 3 different parts that

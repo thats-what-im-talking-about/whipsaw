@@ -10,17 +10,25 @@ import akka.stream.scaladsl.Flow
 import akka.stream.scaladsl.Sink
 import akka.stream.scaladsl.Source
 import controllers.AssetsFinder
+import play.api.libs.json.Json
 import play.api.mvc.AbstractController
 import play.api.mvc.ControllerComponents
 import play.api.mvc.WebSocket
+import twita.whipsaw.api.engine
+import twita.whipsaw.app.workloads.MetadataRegistry
+import twita.whipsaw.app.workloads.processors.AppenderParams
+import twita.whipsaw.app.workloads.schdulers.ItemCountParams
+
+import scala.concurrent.ExecutionContext
 
 
 /**
  * This controller creates an `Action` to handle HTTP requests to the
  * application's home page.
  */
-class HomeController (cc: ControllerComponents) (implicit assetsFinder: AssetsFinder, system: ActorSystem, mat: Materializer)
-  extends AbstractController(cc) {
+class HomeController(cc: ControllerComponents, workloadDirector: engine.Director)(
+  implicit assetsFinder: AssetsFinder, system: ActorSystem, mat: Materializer, executionContext: ExecutionContext
+) extends AbstractController(cc) {
 
   /**
    * Create an Action to render an HTML page with a welcome message.
@@ -39,16 +47,18 @@ class HomeController (cc: ControllerComponents) (implicit assetsFinder: AssetsFi
     overflowStrategy = OverflowStrategy.dropHead
   )
 
-  lazy val (actor, newSrc) = src.preMaterialize()
-
   def websocket = WebSocket.accept[String, String] { implicit req =>
     val in = Sink.foreach[String](s => println(s))
+    val (actor, newSrc) = src.preMaterialize()
     val out = newSrc.map { s => println(s"received ${s}"); s }
     Flow.fromSinkAndSource(in, out)
   }
 
-  def send(s: String) = Action { implicit req =>
-    actor ! s
-    Ok(s"sent ${s}")
+  def start(numItems: Int, name: String) = Action.async { implicit request =>
+    val factory = workloadDirector.registry(MetadataRegistry.sample)
+
+    for {
+      workload <- factory(factory.Created(name, ItemCountParams(numItems), AppenderParams("PrOcEsSeD")))
+    } yield Ok(Json.toJson(workload.id))
   }
 }

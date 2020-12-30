@@ -4,6 +4,7 @@ import java.time.Instant
 
 import enumeratum._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 sealed trait ItemResult extends EnumEntry
@@ -42,5 +43,5 @@ trait Processor[Payload] {
     *           </li>
     *         </ul>
     */
-  def process(payload: Payload): Future[(ItemResult, Payload)]
+  def process(payload: Payload)(implicit executionContext: ExecutionContext): Future[(ItemResult, Payload)]
 }

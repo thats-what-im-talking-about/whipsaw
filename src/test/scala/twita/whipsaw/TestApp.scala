@@ -26,9 +26,7 @@ import scala.util.Random
 object TestApp {
   implicit val testAppActorSystem = ActorSystem("TestApp")
   implicit val materializer = Materializer(testAppActorSystem)
-  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext {
-    override val monitor = Some(new ConsoleMonitor)
-  }
+  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   implicit val executionContext = testAppActorSystem.dispatcher
 
   case class SamplePayload(
@@ -61,7 +59,7 @@ object TestApp {
 
   // create a processor
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
-    override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] = Future {
+    override def process(payload: SamplePayload)(implicit executionContext: ExecutionContext): Future[(ItemResult, SamplePayload)] = Future {
       Thread.sleep(100)
 
       if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)

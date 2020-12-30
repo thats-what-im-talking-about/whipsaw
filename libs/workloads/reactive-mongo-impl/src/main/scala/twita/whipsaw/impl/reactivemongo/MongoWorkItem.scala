@@ -52,21 +52,7 @@ trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Pay
   override protected lazy val collectionName = s"workloads.${workload.id.value}"
   override protected def cons: Either[Empty[WorkItemId], WorkItemDoc[Payload]] => WorkItem[Payload] = o => new MongoWorkItem(o, workload)
 
-  override lazy val eventLogger = new MonitorLogger
-
-  class MonitorLogger extends MongoObjectEventStackLogger(50) {
-    override def log[E <: AllowedEvent: OWrites](
-        eventMetaData: EventMetaData
-      , event: E
-      , parent: Option[BaseEvent[EventId]]
-    ): Future[Unit] = {
-      (mongoContext.monitor, event) match {
-        case (Some(monitor), evt: WorkloadEvent) => monitor.report(evt)
-        case _ => ()
-      }
-      super.log(eventMetaData, event, parent)
-    }
-  }
+  override lazy val eventLogger = new MongoObjectEventStackLogger(50)
 }
 
 class MongoWorkItem[Payload: OFormat](

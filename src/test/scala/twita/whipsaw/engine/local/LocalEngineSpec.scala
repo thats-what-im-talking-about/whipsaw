@@ -12,9 +12,7 @@ import twita.whipsaw.impl.reactivemongo.MongoRegisteredWorkloads
 
 class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   import TestApp.materializer
-  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext {
-    override val monitor = Some(new ConsoleMonitor)
-  }
+  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   val director = new LocalDirector(TestApp.SampleRegistryEntry, new MongoRegisteredWorkloads())
   val workloadFactory = director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
   var workloadId: WorkloadId = _
