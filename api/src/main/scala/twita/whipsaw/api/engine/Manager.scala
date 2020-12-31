@@ -18,17 +18,6 @@ import scala.concurrent.Future
 
 trait WorkloadEvent
 
-/**
-  * Interface that knows how to receive all of the events that are applied to a particular workload.
-  */
-trait WorkloadMonitor {
-  def report(workloadEvent: WorkloadEvent): Unit
-}
-
-class ConsoleMonitor extends WorkloadMonitor {
-  override def report(workloadEvent: WorkloadEvent): Unit = println(workloadEvent)
-}
-
 case class WorkloadStatistics(
     scheduled: Long = 0
   , running: Long = 0
@@ -68,13 +57,6 @@ trait Manager {
   def director: Director
 
   lazy val statsTracker = actorSystem.actorOf(Props[WorkloadStatsTracker])
-
-  /**
-    * Interface that allows external observers to subscribe to all of the events that are applied to this Workload.
-    *
-    * @param monitor Object to which events in this Workload will be sent.
-    */
-  def watch(monitor: WorkloadMonitor)
 
   def executeWorkload()(implicit m: Materializer): Future[(SchedulingStatus, ProcessingStatus)] = {
 

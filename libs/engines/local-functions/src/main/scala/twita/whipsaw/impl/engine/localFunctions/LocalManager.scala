@@ -6,7 +6,6 @@ import twita.whipsaw.api.engine.Director
 import twita.whipsaw.api.engine.Manager
 import twita.whipsaw.api.engine.Managers
 import twita.whipsaw.api.engine.Workers
-import twita.whipsaw.api.engine.WorkloadMonitor
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 
@@ -19,13 +18,6 @@ class LocalManager(
   , override val workload: Workload[_, _, _]
 )(implicit val executionContext: ExecutionContext, val actorSystem: ActorSystem) extends Manager {
   override def workers: Workers = new LocalWorkers
-
-  /**
-    * Interface that allows external observers to subscribe to all of the events that are applied to this Workload.
-    *
-    * @param monitor Object to which events in this Workload will be sent.
-    */
-  override def watch(monitor: WorkloadMonitor): Unit = ???
 }
 
 class LocalManagers(val director: Director)(implicit executionContext: ExecutionContext, actorSystem: ActorSystem) extends Managers {

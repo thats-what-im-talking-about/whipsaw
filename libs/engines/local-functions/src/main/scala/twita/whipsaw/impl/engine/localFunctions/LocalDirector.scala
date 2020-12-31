@@ -16,5 +16,5 @@ class LocalDirector(
   /**
     * @return Managers that are currently working on a Workload at the request of this Director.
     */
-  override lazy val managers: Managers = new LocalManagers()
+  override lazy val managers: Managers = new LocalManagers(this)
 }
