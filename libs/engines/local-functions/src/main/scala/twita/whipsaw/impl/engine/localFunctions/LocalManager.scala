@@ -32,6 +32,8 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
       case _ => Future.failed(new IllegalStateException(s"WorkloadId not found: ${workloadId}"))
     }
 
+  override def lookup(workloadId: WorkloadId): Option[Manager] = _managers.get(workloadId)
+
   /**
     * Adds a Manager instance to this Managers collection, and then "activates" the workload.
     *

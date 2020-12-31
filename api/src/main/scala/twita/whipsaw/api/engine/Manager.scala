@@ -4,6 +4,8 @@ import java.time.Instant
 
 import akka.actor.Actor
 import akka.actor.ActorSystem
+import akka.actor.Cancellable
+import akka.actor.PoisonPill
 import akka.actor.Props
 import akka.stream.Materializer
 import play.api.libs.json.Json
@@ -13,6 +15,7 @@ import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
@@ -38,15 +41,45 @@ case class WorkloadStatistics(
 object WorkloadStatistics { implicit val fmt = Json.format[WorkloadStatistics] }
 
 class WorkloadStatsTracker extends Actor {
-  override def receive: Receive = receiveStats(WorkloadStatistics())
+  override def receive: Receive = receiveOther(WorkloadStatistics(), List.empty)
+  implicit val executionContext = context.dispatcher
 
-  def receiveStats(workloadStatistics: WorkloadStatistics): Receive = {
-    case updateStats: WorkloadStatistics => context.become(receiveStats(workloadStatistics(updateStats)))
+  def receiveOther(
+      workloadStatistics: WorkloadStatistics
+    , probes: List[Probe]
+    , timer: Option[Cancellable] = None
+  ): Receive = {
+    case updateStats: WorkloadStatistics if timer.isEmpty =>
+      val timer = probes.headOption.map { _ =>
+        context.system.scheduler.scheduleOnce(1 second) {
+          self ! WorkloadStatsTracker.Report
+        }
+      }
+      context.become(receiveOther(workloadStatistics(updateStats), probes, timer))
+
+    case updateStats: WorkloadStatistics =>
+      context.become(receiveOther(workloadStatistics(updateStats), probes, timer))
+
+    case WorkloadStatsTracker.Report =>
+      probes.map { probe =>
+        probe.report(workloadStatistics)
+      }
+      context.become(receiveOther(workloadStatistics, probes))
+
+    case WorkloadStatsTracker.AddProbe(probe) => context.become(receiveOther(workloadStatistics, probes :+ probe))
+
     case WorkloadStatsTracker.SaveStats(workload) => workload.stats = workloadStatistics
+
+    case WorkloadStatsTracker.Deactivate =>
+      probes.map(_.deactivate())
+      self ! PoisonPill
   }
 }
 object WorkloadStatsTracker {
   case class SaveStats(workload: Workload[_,_,_])
+  case class AddProbe(probe: Probe)
+  case object Deactivate
+  case object Report
 }
 
 trait Manager {
@@ -56,7 +89,11 @@ trait Manager {
   def actorSystem: ActorSystem
   def director: Director
 
-  lazy val statsTracker = actorSystem.actorOf(Props[WorkloadStatsTracker])
+  lazy val statsTracker = actorSystem.actorOf(Props[WorkloadStatsTracker], s"stats-tracker-${workload.id.value}")
+
+  def addProbe(probe: Probe) = {
+    statsTracker ! WorkloadStatsTracker.AddProbe(probe)
+  }
 
   def executeWorkload()(implicit m: Materializer): Future[(SchedulingStatus, ProcessingStatus)] = {
 
@@ -97,7 +134,9 @@ trait Manager {
           Thread.sleep(5)
           statsTracker ! WorkloadStatsTracker.SaveStats(wl)
           numProcessed match {
-            case 0 if last => Future.successful(ProcessingStatus.Completed)
+            case 0 if last =>
+              statsTracker ! WorkloadStatsTracker.Deactivate
+              Future.successful(ProcessingStatus.Completed)
             case 0 => processRunnablesFt(true)
             case n => processRunnablesFt(false)
           }
@@ -127,6 +166,8 @@ trait Managers {
     * @return Manager instance (either new or previously created) for the workload provided.
     */
   def forWorkloadId(workloadId: WorkloadId): Future[Manager]
+
+  def lookup(workloadId: WorkloadId): Option[Manager]
 
   /**
     * Adds a Manager instance to this Managers collection, and then "activates" the workload.

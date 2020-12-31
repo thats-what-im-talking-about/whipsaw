@@ -6,7 +6,6 @@ import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
-import twita.whipsaw.api.engine.ConsoleMonitor
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.WorkloadRegistry
 import twita.whipsaw.api.engine.WorkloadRegistryEntry
