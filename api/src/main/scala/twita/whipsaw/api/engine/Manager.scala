@@ -27,6 +27,7 @@ case class WorkloadStatistics(
   , scheduledForRetry: Long = 0
   , completed: Long = 0
   , error: Long = 0
+  , runAt: Option[Instant] = None
 ) {
   def apply(that: WorkloadStatistics): WorkloadStatistics = {
     copy(
@@ -35,6 +36,7 @@ case class WorkloadStatistics(
       , scheduledForRetry = scheduledForRetry + that.scheduledForRetry
       , completed = completed + that.completed
       , error = error + that.error
+      , runAt = that.runAt
     )
   }
 }
@@ -51,7 +53,7 @@ class WorkloadStatsTracker extends Actor {
   ): Receive = {
     case updateStats: WorkloadStatistics if timer.isEmpty =>
       val timer = probes.headOption.map { _ =>
-        context.system.scheduler.scheduleOnce(1 second) {
+        context.system.scheduler.scheduleOnce(1.second) {
           self ! WorkloadStatsTracker.Report
         }
       }
@@ -70,7 +72,8 @@ class WorkloadStatsTracker extends Actor {
 
     case WorkloadStatsTracker.SaveStats(workload) => workload.stats = workloadStatistics
 
-    case WorkloadStatsTracker.Deactivate =>
+    case WorkloadStatsTracker.Deactivate(workload, nextRunAt) =>
+      workload.stats = workloadStatistics(WorkloadStatistics(runAt = nextRunAt))
       probes.map(_.deactivate())
       self ! PoisonPill
   }
@@ -78,7 +81,7 @@ class WorkloadStatsTracker extends Actor {
 object WorkloadStatsTracker {
   case class SaveStats(workload: Workload[_,_,_])
   case class AddProbe(probe: Probe)
-  case object Deactivate
+  case class Deactivate(workload: Workload[_,_,_], nextRunAt: Option[Instant])
   case object Report
 }
 
@@ -128,15 +131,22 @@ trait Manager {
               }
             })
             .runFold(0) { case (result, _) => result + 1 }
-          _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Completed))
+          nextRunAt <- wl.workItems.nextRunAt
+          status = nextRunAt match {
+              case Some(_) => ProcessingStatus.Waiting
+              case _ => ProcessingStatus.Completed
+            }
+          _ <- wl(wl.ProcessingStatusUpdated(status))
         } yield result).flatMap { numProcessed =>
           println(s"processed ${numProcessed} entries")
           Thread.sleep(5)
           statsTracker ! WorkloadStatsTracker.SaveStats(wl)
           numProcessed match {
             case 0 if last =>
-              statsTracker ! WorkloadStatsTracker.Deactivate
-              Future.successful(ProcessingStatus.Completed)
+              workload.workItems.nextRunAt.map { nextRunAt =>
+                statsTracker ! WorkloadStatsTracker.Deactivate(workload, nextRunAt)
+                wl.processingStatus
+              }
             case 0 => processRunnablesFt(true)
             case n => processRunnablesFt(false)
           }

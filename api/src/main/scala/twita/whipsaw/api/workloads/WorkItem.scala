@@ -106,10 +106,14 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
     */
   def runnableItemSource(runAt: Instant, batchSize: Int)(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
 
+  def nextRunAt: Future[Option[Instant]]
+
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator with WorkloadEvent
 
   case class WorkItemAdded(payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
   object WorkItemAdded { implicit val fmt = Json.format[WorkItemAdded] }
+
+  case object NextRunAt extends Query
 }
 
 object WorkItems {

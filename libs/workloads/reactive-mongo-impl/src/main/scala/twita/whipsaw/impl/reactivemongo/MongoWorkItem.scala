@@ -110,6 +110,12 @@ class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload,
     with WorkItems[Payload]
 {
 
+  override def nextRunAt: Future[Option[Instant]] = getListByJsonCrit(
+        constraint = Json.obj("runAt" -> Json.obj("$exists" -> true))
+      , sort = Json.obj("runAt" -> 1)
+      , limit = 1
+    ).map(_.headOption.flatMap(_.runAt))
+
   override protected def ensureIndexes(coll: JSONCollection) = {
     val uniqueIndexKeys = workload.metadata.payloadUniqueConstraint.map(fld => s"payload.${fld}" -> IndexType.Ascending)
     for {

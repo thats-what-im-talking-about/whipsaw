@@ -1,6 +1,5 @@
 package twita.whipsaw.api.workloads
 
-import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorRef
