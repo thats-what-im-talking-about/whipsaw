@@ -12,6 +12,7 @@ import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject.SetOp
+import twita.whipsaw.api.engine.WorkloadStatistics
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.ProcessingStatus
@@ -23,6 +24,7 @@ import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
+import reactivemongo.play.json.compat._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -35,6 +37,7 @@ case class WorkloadDoc[SParams: OFormat, PParams: OFormat] (
   , processorParams: PParams
   , schedulingStatus: SchedulingStatus = SchedulingStatus.Init
   , processingStatus: ProcessingStatus = ProcessingStatus.Init
+  , stats: WorkloadStatistics = WorkloadStatistics()
 ) extends BaseDoc[WorkloadId]
 
 object WorkloadDoc {
@@ -80,6 +83,17 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
   override def schedulingStatus: SchedulingStatus = obj.schedulingStatus
 
   override def processingStatus: ProcessingStatus = obj.processingStatus
+
+  override def stats: Future[WorkloadStatistics] = Future.successful(obj.stats)
+
+  override def stats_=(workloadStatistics: WorkloadStatistics): Future[WorkloadStatistics] =
+    for {
+      objColl <- objCollectionFt
+      updateResult <- objColl.update(ordered=false).one(
+          Json.obj("_id" -> Json.toJson(id))
+        , Json.obj("$set" -> Json.obj("workloadStatistics" -> Json.toJson(workloadStatistics)))
+      )
+    } yield workloadStatistics
 
   override def apply(
       event: AllowedEvent

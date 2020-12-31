@@ -60,7 +60,7 @@ object TestApp {
   // create a processor
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
     override def process(payload: SamplePayload)(implicit executionContext: ExecutionContext): Future[(ItemResult, SamplePayload)] = Future {
-      Thread.sleep(100)
+      //Thread.sleep(100)
 
       if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)
       else

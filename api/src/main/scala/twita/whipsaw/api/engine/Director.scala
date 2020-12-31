@@ -46,13 +46,15 @@ trait Director {
     *          of actually processing the Workload.
     * @return List or workloads that were actually run.
     */
-  def delegateRunnableWorkloads()(implicit m: Materializer): Future[Seq[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
+  def delegateRunnableWorkloads()(implicit m: Materializer): Future[Unit] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable
       runnables <- Future.traverse(listToRun) { rw => registry(rw)}
       managerSeq <- Future.traverse(runnables) { runnable => managers.forWorkload(runnable) }
-      processed <- Future.traverse(managerSeq) { manager => manager.executeWorkload().map(manager.workload.id -> _) }
+      processed = managerSeq.map(managers.activate)
     } yield processed
   }
+
+  def onManagerComplete(manager: Manager): Future[Unit] = managers.deactivate(manager)
 }

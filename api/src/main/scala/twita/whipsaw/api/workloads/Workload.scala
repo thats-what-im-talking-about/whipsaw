@@ -3,6 +3,7 @@ package twita.whipsaw.api.workloads
 import java.time.Instant
 import java.util.UUID
 
+import akka.actor.ActorRef
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import enumeratum.PlayJsonEnum
@@ -19,7 +20,7 @@ import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.whipsaw.api.engine.WorkloadEvent
-import twita.whipsaw.api.engine.WorkloadMonitor
+import twita.whipsaw.api.engine.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -101,6 +102,9 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def batchSize: Int = 100
   def desiredNumWorkers: Int = 50
 
+  def stats: Future[WorkloadStatistics]
+  def stats_=(workloadStatistics: WorkloadStatistics): Future[WorkloadStatistics]
+
   // This is needed to prevent a compiler error that deals with the generic expansion of the various events that
   // are part of this trait:
   // type mismatch;
@@ -108,10 +112,11 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   // [error]  required: qual$1.AllowedEvent
   private lazy val workItemFactory = workItems
 
-  def schedule()(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
+  def schedule(statsTracker: ActorRef)(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
     for {
       payloadIterator <- scheduler.schedule()
       source = Source.fromIterator(() => payloadIterator).mapAsyncUnordered(10) { payload =>
+        statsTracker ! WorkloadStatistics(scheduled = 1)
         workItemFactory(workItemFactory.WorkItemAdded(payload)).map(Option(_))
           .recoverWith { case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None) }
       }

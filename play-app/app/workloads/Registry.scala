@@ -1,5 +1,6 @@
 package twita.whipsaw.app.workloads
 
+import akka.actor.ActorSystem
 import enumeratum._
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.MongoContext
@@ -25,6 +26,7 @@ import scala.concurrent.Future
 trait AppRegistry {
   implicit def workloadContext: MongoContext with WorkloadContext
   implicit def executionContext: ExecutionContext
+  implicit def actorSystem: ActorSystem
   def registeredWorkloads: RegisteredWorkloads
 
   val workloadDirector: Director = new LocalDirector(AppRegistryEntry, registeredWorkloads)
