@@ -91,7 +91,7 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
       objColl <- objCollectionFt
       updateResult <- objColl.update(ordered=false).one(
           Json.obj("_id" -> Json.toJson(id))
-        , Json.obj("$set" -> Json.obj("workloadStatistics" -> Json.toJson(workloadStatistics)))
+        , Json.obj("$set" -> Json.obj("stats" -> Json.toJson(workloadStatistics)))
       )
     } yield workloadStatistics
 

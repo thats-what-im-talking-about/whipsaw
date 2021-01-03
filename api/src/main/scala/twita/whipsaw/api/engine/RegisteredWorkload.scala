@@ -86,6 +86,8 @@ trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
   override type ObjectId = WorkloadId
 
   def factoryType: String
+  def stats: WorkloadStatistics
+  def refresh: Future[RegisteredWorkload]
 }
 
 object RegisteredWorkload {

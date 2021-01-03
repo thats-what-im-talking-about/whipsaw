@@ -3,6 +3,7 @@ package twita.whipsaw.impl.reactivemongo
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
+import reactivemongo.play.json.compat._
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.byId
@@ -15,6 +16,7 @@ import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.RegisteredWorkloads
 import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.engine.WorkloadStatistics
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.SchedulingStatus
@@ -43,6 +45,7 @@ abstract class MongoWorkloadRegistryEntry(implicit mongoContext: MongoContext wi
 case class RegisteredWorkloadDoc(
     _id: WorkloadId
   , factoryType: String
+  , stats: WorkloadStatistics = WorkloadStatistics()
 ) extends BaseDoc[WorkloadId]
 
 object RegisteredWorkloadDoc {
@@ -53,21 +56,32 @@ trait RegisteredWorkloadDescriptor
 extends ObjectDescriptor[EventId, RegisteredWorkload, RegisteredWorkloadDoc]
 {
   implicit def mongoContext: MongoContext
+  protected def workloads: RegisteredWorkloads
 
   override protected lazy val collectionName = "workloads"
   override protected def cons: Either[Empty[WorkloadId], RegisteredWorkloadDoc] => RegisteredWorkload = {
-    o => new MongoRegisteredWorkload(o)
+    o => new MongoRegisteredWorkload(o, workloads)
   }
 }
 
-class MongoRegisteredWorkload(protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc]
+class MongoRegisteredWorkload(
+    protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc]
+  , protected val workloads: RegisteredWorkloads
 )(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext)
 extends ReactiveMongoObject[EventId, RegisteredWorkload, RegisteredWorkloadDoc]
   with RegisteredWorkloadDescriptor
   with RegisteredWorkload
 {
+  override def stats: WorkloadStatistics = obj.stats
   override def factoryType: String = obj.factoryType
   override def apply(event: RegisteredWorkload.Event, parent: Option[BaseEvent[EventId]]): Future[RegisteredWorkload] = ???
+
+  def refresh: Future[RegisteredWorkload] = {
+    for {
+      coll <- objCollectionFt
+      one <- coll.find(Json.obj("_id" -> id), None).one[RegisteredWorkloadDoc]
+    } yield cons(Right(one.get))
+  }
 }
 
 class MongoRegisteredWorkloads()(
@@ -78,7 +92,12 @@ extends ReactiveMongoDomainObjectGroup[EventId, RegisteredWorkload, RegisteredWo
   with RegisteredWorkloadDescriptor
   with RegisteredWorkloads
 {
+  override protected val workloads = this
+
   override protected def listConstraint: JsObject = Json.obj()
+
+  override def get(q: DomainObjectGroup.Query): Future[Option[RegisteredWorkload]] = super.get(q)
+
   override def list(q: DomainObjectGroup.Query): Future[List[RegisteredWorkload]] = ???
 
   override def getRunnable: Future[List[RegisteredWorkload]] = getListByJsonCrit(Json.obj("schedulingStatus" -> SchedulingStatus.Init))

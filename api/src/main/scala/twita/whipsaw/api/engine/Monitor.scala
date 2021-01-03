@@ -1,55 +1,57 @@
 package twita.whipsaw.api.engine
 
+import java.time.Instant
+
 import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Cancellable
 import akka.actor.PoisonPill
 import akka.actor.Props
+import akka.pattern.pipe
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.whipsaw.api.workloads.WorkloadId
 
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class Probe(director: Director, workloadId: WorkloadId)(implicit actorSystem: ActorSystem) {
+class Probe(val monitor: Monitor, val workload: RegisteredWorkload)(implicit actorSystem: ActorSystem) {
   implicit val executionContext = actorSystem.dispatcher
+  private var _timer: Option[Cancellable] = None
 
-  private var _monitorActor: ActorRef = _
-  def connect(monitorActor: ActorRef) = {
-    _monitorActor = monitorActor
-    director.managers.lookup(workloadId) match {
-      case Some(manager) => activate(manager)
-      case None => deactivate()
-    }
+  monitor.director.managers.lookup(workload.id) match {
+    case Some(manager) => activate(manager)
+    case None => deactivate()
   }
-  def report(workloadStatistics: WorkloadStatistics) = _monitorActor ! MonitorActor.WorkloadReport(workloadId, workloadStatistics)
 
-  def activate(manager: Manager) = manager.addProbe(this)
-  def deactivate() = actorSystem.actorOf(Props(new DeactivatedWorkloadActor), s"deactivated-workload-${workloadId.value}")
-
-  object DeactivatedWorkloadActor {
-    case object Check
+  def report(workloadStatistics: WorkloadStatistics) = {
+    println(s"reporting ${workloadStatistics}")
+    monitor.monitorActor ! MonitorActor.WorkloadReport(workload.id, workloadStatistics)
   }
-  class DeactivatedWorkloadActor extends Actor {
-    override def preStart() = {
-      context.system.scheduler.scheduleAtFixedRate(100.millis, 10.seconds, self, DeactivatedWorkloadActor.Check)
-      for {
-        rw <- director.registeredWorkloads.get(byId(workloadId))
-        w <- rw match {
-          case Some(registeredWorkload) => director.registry(registeredWorkload)
-          case _ => Future.failed(new RuntimeException("workload not found"))
-        }
-        stats <- w.stats
-      } yield _monitorActor ! MonitorActor.WorkloadReport(workloadId, stats)
-    }
 
-    override def receive: Receive = {
-      case DeactivatedWorkloadActor.Check => director.managers.lookup(workloadId) match {
+  def activate(manager: Manager) = {
+    _timer.map(_.cancel())
+    _timer = None
+    manager.addProbe(this)
+  }
+
+  def deactivate() =
+    _timer = Some(actorSystem.scheduler.scheduleAtFixedRate(5.seconds, 5.seconds)(new Refresh()))
+
+  class Refresh extends Runnable {
+    override def run = Await.result(refresh, 500.seconds)
+
+    private def refresh(implicit executionContext: ExecutionContext): Future[Unit] = {
+      monitor.director.managers.lookup(workload.id) match {
         case Some(manager) =>
+          println("Found a manager!  Activating")
           activate(manager)
-          self ! PoisonPill
+          Future.unit
         case None =>
+          println("No manager!  Reporting")
+          workload.refresh.map(rw => report(rw.stats))
       }
     }
   }
@@ -59,11 +61,13 @@ sealed trait WorkloadFilter
 
 case class ForWorkload(workloadId: WorkloadId) extends WorkloadFilter
 
-class Monitor(director: Director, observer: ActorRef)(implicit actorSystem: ActorSystem) {
-  def addFilter(filter: WorkloadFilter) = filter match {
+class Monitor(val director: Director, observer: ActorRef)(implicit actorSystem: ActorSystem) {
+  def addFilter(filter: WorkloadFilter)(implicit executionContext: ExecutionContext) = filter match {
     case ForWorkload(workloadId) =>
-      val probe = new Probe(director, workloadId)
-      probe.connect(monitorActor)
+      director.registeredWorkloads.get(byId(workloadId)).map {
+        case Some(rw) => new Probe(this, rw)
+        case None => throw new RuntimeException(s"workload ${workloadId} not found.")
+      }
   }
 
   lazy val monitorActor = actorSystem.actorOf(Props(new MonitorActor(observer)), s"monitor-actor")

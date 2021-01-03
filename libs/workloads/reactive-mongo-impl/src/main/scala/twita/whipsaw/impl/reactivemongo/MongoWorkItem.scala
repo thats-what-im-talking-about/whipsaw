@@ -95,6 +95,17 @@ class MongoWorkItem[Payload: OFormat](
           , "$inc" -> Json.obj("retryCount" -> 1)
         ), evt, parent
       )
+    case evt: Rescheduled =>
+      updateVerbose(
+        Json.obj(
+          "$set" -> Json.obj(
+              "payload" -> Json.toJsObject(evt.newPayload)
+            , "finishedProcessingAt" -> Json.toJson(evt.at)
+            , "retryCount" -> Json.toJson(0)
+            , "runAt" -> Json.toJson(evt.newRunAt)
+          )
+        ), evt, parent
+      )
     case evt: MaxRetriesReached =>
       updateVerbose(
         Json.obj("$set" -> Json.obj("errorStoppedProcessingAt" -> Json.toJson(Instant.now))), evt, parent

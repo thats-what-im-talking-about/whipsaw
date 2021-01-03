@@ -40,8 +40,8 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     * @param manager Manager of the workload to be activated
     */
   override def activate(manager: Manager): Future[Unit] = {
-    _managers.put(manager.workload.id, manager)
-    manager.executeWorkload().map(manager.workload.id -> _)
+    println(s"adding manager for worklaod ${manager.workload.id}")
+    Future.successful(_managers.put(manager.workload.id, manager))
   }
 
   /**
@@ -49,6 +49,8 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     *
     * @param manager Manager of the workload to be deactivated
     */
-  override def deactivate(manager: Manager): Future[Unit] =
+  override def deactivate(manager: Manager): Future[Unit] = {
+    println(s"removing manager for worklaod ${manager.workload.id}")
     Future.successful(_managers.remove(manager.workload.id))
+  }
 }

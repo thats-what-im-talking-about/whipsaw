@@ -1,5 +1,7 @@
 package twita.whipsaw
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import enumeratum._
@@ -20,6 +22,7 @@ import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.Random
 
 object TestApp {
@@ -63,10 +66,14 @@ object TestApp {
 
       if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)
       else
-        (ItemResult.Done, payload.copy(
-          target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
-          , touchedCount = payload.touchedCount + 1
-        ))
+        payload.touchedCount match {
+          case 0 => (ItemResult.Reschedule(Instant.now.plusMillis(60000)), payload.copy(touchedCount = payload.touchedCount + 1))
+          case _ =>
+            (ItemResult.Done, payload.copy(
+                target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
+              , touchedCount = payload.touchedCount + 1
+            ))
+        }
     }
   }
 
