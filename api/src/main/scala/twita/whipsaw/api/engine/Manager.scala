@@ -46,6 +46,8 @@ class WorkloadStatsTracker(manager: Manager) extends Actor {
       probes.map(_.report(workloadStatistics))
       context.become(receiveOther(workloadStatistics, probes, None))
 
+    case WorkloadStatsTracker.SaveStats => manager.workload.stats = workloadStatistics
+
     case WorkloadStatsTracker.AddProbe(probe) =>
       context.become(receiveOther(workloadStatistics, probes :+ probe, timer))
 
@@ -136,8 +138,8 @@ trait Manager {
             }
           _ <- wl(wl.ProcessingStatusUpdated(status))
         } yield result).flatMap { numProcessed =>
-          Thread.sleep(5)
           statsTracker ! WorkloadStatsTracker.SaveStats
+          Thread.sleep(500)
           numProcessed match {
             case 0 if last =>
               workload.workItems.nextRunAt.map { nextRunAt =>

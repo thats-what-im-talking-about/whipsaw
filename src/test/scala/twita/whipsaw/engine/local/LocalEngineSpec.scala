@@ -23,21 +23,37 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   val director = new LocalDirector(TestApp.SampleRegistryEntry, new MongoRegisteredWorkloads())
   val workloadFactory = director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
   var workloadId: WorkloadId = _
+  var monitor: Monitor = _
 
   "workloads" should "be created" in {
     for {
       createdWorkload <- workloadFactory(
         workloadFactory.Created(
-          name = "Sample Workload"
+            name = "Sample Workload"
           , schedulerParams = TestApp.SampleSchedulerParams(10)
           , processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
         )
       )
-      monitor = new Monitor(director, actorSystem.actorOf(Props[TestMonitor], "testMonitor"))
-      _ <- monitor.addFilter(ForWorkload(createdWorkload.id ))
     } yield {
       workloadId = createdWorkload.id
       assert(createdWorkload.name == "Sample Workload")
+    }
+  }
+
+  "stats" should "be retrievable from the directory by workloadId" in {
+    for {
+      rw <- director.registeredWorkloads.get(byId(workloadId))
+    } yield {
+      assert(rw.map(_.stats).isDefined)
+    }
+  }
+
+  "probes" should "be added for individual workloads" in {
+    monitor = new Monitor(director, actorSystem.actorOf(Props[TestMonitor], "testMonitor"))
+    for {
+      result <- monitor.addFilter(ForWorkload(workloadId))
+    } yield {
+      assert(result.workload.id == workloadId)
     }
   }
 
@@ -47,7 +63,6 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
         _ = rwOpt.map(rw => println(s"Stats from LocalEngineSpec: ${rw.stats}"))
         result <- director.delegateRunnableWorkloads()
       } yield {
-        Thread.sleep(500000)
         assert(result.size == 1)
       }
   }

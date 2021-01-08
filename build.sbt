@@ -22,6 +22,11 @@ libraryDependencies ++= Seq(
   //, "com.typesafe.akka" %% "akka-serialization-jackson" % akkaVersion
 )
 
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-serialization-jackson" % akkaVersion
+
+
 lazy val api = project in file("api")
 
 lazy val `workload-reactive-mongo-impl` = (project in file("libs/workloads/reactive-mongo-impl")).dependsOn(api)

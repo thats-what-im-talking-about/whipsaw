@@ -10,11 +10,15 @@ import akka.stream.scaladsl.Flow
 import akka.stream.scaladsl.Sink
 import akka.stream.scaladsl.Source
 import controllers.AssetsFinder
+import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.mvc.AbstractController
 import play.api.mvc.ControllerComponents
 import play.api.mvc.WebSocket
 import twita.whipsaw.api.engine
+import twita.whipsaw.api.engine.ForWorkload
+import twita.whipsaw.api.engine.Monitor
+import twita.whipsaw.api.engine.MonitorActor
 import twita.whipsaw.app.workloads.MetadataRegistry
 import twita.whipsaw.app.workloads.processors.AppenderParams
 import twita.whipsaw.app.workloads.schdulers.ItemCountParams
@@ -40,7 +44,11 @@ class HomeController(cc: ControllerComponents, workloadDirector: engine.Director
     Ok(views.html.index("Your new application is ready."))
   }
 
-  val src: Source[String, ActorRef] = Source.actorRef(
+  def monitor = Action {
+    Ok(views.html.monitor("Welcome to the Whipsaw Workload Monitor"))
+  }
+
+  def src: Source[String, ActorRef] = Source.actorRef(
     completionMatcher = { case Done => CompletionStrategy.immediately },
     failureMatcher = PartialFunction.empty,
     bufferSize = 100,
@@ -48,9 +56,10 @@ class HomeController(cc: ControllerComponents, workloadDirector: engine.Director
   )
 
   def websocket = WebSocket.accept[String, String] { implicit req =>
-    val in = Sink.foreach[String](s => println(s))
     val (actor, newSrc) = src.preMaterialize()
     val out = newSrc.map { s => println(s"received ${s}"); s }
+    val in = Sink.foreach[String] { s => println(s"passing through to ${s}"); actor ! s }
+    val monitor = new Monitor(workloadDirector, actor)
     Flow.fromSinkAndSource(in, out)
   }
 

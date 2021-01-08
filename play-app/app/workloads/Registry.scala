@@ -56,6 +56,6 @@ object MetadataRegistry {
       new ToUpperScheduler(_: ItemCountParams)
     , new AppenderToUpperProcessor(_: AppenderParams)
     , Seq("email")
-    , "sample"
+    , "Sample"
   )
 }

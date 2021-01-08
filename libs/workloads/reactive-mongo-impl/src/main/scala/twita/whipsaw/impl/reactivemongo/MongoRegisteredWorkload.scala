@@ -56,17 +56,15 @@ trait RegisteredWorkloadDescriptor
 extends ObjectDescriptor[EventId, RegisteredWorkload, RegisteredWorkloadDoc]
 {
   implicit def mongoContext: MongoContext
-  protected def workloads: RegisteredWorkloads
 
   override protected lazy val collectionName = "workloads"
   override protected def cons: Either[Empty[WorkloadId], RegisteredWorkloadDoc] => RegisteredWorkload = {
-    o => new MongoRegisteredWorkload(o, workloads)
+    o => new MongoRegisteredWorkload(o)
   }
 }
 
 class MongoRegisteredWorkload(
     protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc]
-  , protected val workloads: RegisteredWorkloads
 )(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext)
 extends ReactiveMongoObject[EventId, RegisteredWorkload, RegisteredWorkloadDoc]
   with RegisteredWorkloadDescriptor
@@ -92,11 +90,12 @@ extends ReactiveMongoDomainObjectGroup[EventId, RegisteredWorkload, RegisteredWo
   with RegisteredWorkloadDescriptor
   with RegisteredWorkloads
 {
-  override protected val workloads = this
-
   override protected def listConstraint: JsObject = Json.obj()
 
-  override def get(q: DomainObjectGroup.Query): Future[Option[RegisteredWorkload]] = super.get(q)
+  override def get(q: DomainObjectGroup.Query): Future[Option[RegisteredWorkload]] = {
+    println(s"about to get workload ${q}")
+    super.get(q).map { r => println(s"got workload ${r}"); r}
+  }
 
   override def list(q: DomainObjectGroup.Query): Future[List[RegisteredWorkload]] = ???
 

@@ -16,5 +16,5 @@ object Dependencies {
   //
   // ---------------------------------------------------------------------- 
   lazy val dominionVersion = "0.1.0"
-  lazy val akkaVersion = "2.6.8"
+  lazy val akkaVersion = "2.6.10"
 }
