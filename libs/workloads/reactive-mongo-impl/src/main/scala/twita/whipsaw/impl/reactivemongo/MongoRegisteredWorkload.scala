@@ -16,7 +16,6 @@ import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.engine.RegisteredWorkloads
 import twita.whipsaw.api.engine.WorkloadRegistryEntry
-import twita.whipsaw.api.engine.WorkloadStatistics
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.SchedulingStatus
@@ -24,6 +23,7 @@ import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.api.workloads.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

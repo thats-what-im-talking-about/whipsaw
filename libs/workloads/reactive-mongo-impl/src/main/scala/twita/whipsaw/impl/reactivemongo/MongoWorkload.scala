@@ -12,7 +12,6 @@ import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject.SetOp
-import twita.whipsaw.api.engine.WorkloadStatistics
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.ProcessingStatus
@@ -25,6 +24,7 @@ import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 import reactivemongo.play.json.compat._
+import twita.whipsaw.api.workloads.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

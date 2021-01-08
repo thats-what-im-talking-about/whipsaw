@@ -10,6 +10,7 @@ import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.api.workloads.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

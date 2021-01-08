@@ -1,61 +1,16 @@
 package twita.whipsaw.api.engine
 
-import java.time.Instant
-
 import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Cancellable
-import akka.actor.PoisonPill
 import akka.actor.Props
-import akka.pattern.pipe
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.api.workloads.WorkloadStatistics
 
-import scala.concurrent.Await
 import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
 import scala.concurrent.duration._
-
-class Probe(val monitor: Monitor, val workload: RegisteredWorkload)(implicit actorSystem: ActorSystem) {
-  implicit val executionContext = actorSystem.dispatcher
-  private var _timer: Option[Cancellable] = None
-
-  monitor.director.managers.lookup(workload.id) match {
-    case Some(manager) => activate(manager)
-    case None => deactivate()
-  }
-
-  def report(workloadStatistics: WorkloadStatistics) = {
-    println(s"reporting ${workloadStatistics}")
-    monitor.monitorActor ! MonitorActor.WorkloadReport(workload.id, workloadStatistics)
-  }
-
-  def activate(manager: Manager) = {
-    _timer.map(_.cancel())
-    _timer = None
-    manager.addProbe(this)
-  }
-
-  def deactivate() =
-    _timer = Some(actorSystem.scheduler.scheduleAtFixedRate(5.seconds, 5.seconds)(new Refresh()))
-
-  class Refresh extends Runnable {
-    override def run = Await.result(refresh, 500.seconds)
-
-    private def refresh(implicit executionContext: ExecutionContext): Future[Unit] = {
-      monitor.director.managers.lookup(workload.id) match {
-        case Some(manager) =>
-          println("Found a manager!  Activating")
-          activate(manager)
-          Future.unit
-        case None =>
-          println("No manager!  Reporting")
-          workload.refresh.map(rw => report(rw.stats))
-      }
-    }
-  }
-}
 
 sealed trait WorkloadFilter
 
@@ -65,7 +20,7 @@ class Monitor(val director: Director, observer: ActorRef)(implicit actorSystem: 
   def addFilter(filter: WorkloadFilter)(implicit executionContext: ExecutionContext) = filter match {
     case ForWorkload(workloadId) =>
       director.registeredWorkloads.get(byId(workloadId)).map {
-        case Some(rw) => new Probe(this, rw)
+        case Some(rw) => new Probe(this, director.registeredWorkloads, rw)
         case None => throw new RuntimeException(s"workload ${workloadId} not found.")
       }
   }

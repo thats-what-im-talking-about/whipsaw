@@ -9,40 +9,18 @@ import akka.actor.PoisonPill
 import akka.actor.Props
 import akka.pattern.pipe
 import akka.stream.Materializer
-import play.api.libs.json.Json
-import twita.dominion.api.DomainObjectGroup.byId
 import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.api.workloads.WorkloadStatistics
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 trait WorkloadEvent
-
-case class WorkloadStatistics(
-    scheduled: Long = 0
-  , running: Long = 0
-  , scheduledForRetry: Long = 0
-  , completed: Long = 0
-  , error: Long = 0
-  , runAt: Option[Instant] = None
-) {
-  def apply(that: WorkloadStatistics): WorkloadStatistics = {
-    copy(
-        scheduled = scheduled + that.scheduled
-      , running = running + that.running
-      , scheduledForRetry = scheduledForRetry + that.scheduledForRetry
-      , completed = completed + that.completed
-      , error = error + that.error
-      , runAt = that.runAt
-    )
-  }
-}
-object WorkloadStatistics { implicit val fmt = Json.format[WorkloadStatistics] }
 
 class WorkloadStatsTracker(manager: Manager) extends Actor {
   override def receive: Receive = receiveOther(WorkloadStatistics(), List.empty, None)
@@ -70,8 +48,6 @@ class WorkloadStatsTracker(manager: Manager) extends Actor {
 
     case WorkloadStatsTracker.AddProbe(probe) =>
       context.become(receiveOther(workloadStatistics, probes :+ probe, timer))
-
-    case WorkloadStatsTracker.SaveStats => manager.workload.stats = workloadStatistics
 
     case WorkloadStatsTracker.Deactivate(nextRunAt) =>
       self ! WorkloadStatsTracker.SaveStats

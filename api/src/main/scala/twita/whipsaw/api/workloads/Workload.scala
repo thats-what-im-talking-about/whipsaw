@@ -19,7 +19,6 @@ import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.whipsaw.api.engine.WorkloadEvent
-import twita.whipsaw.api.engine.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
