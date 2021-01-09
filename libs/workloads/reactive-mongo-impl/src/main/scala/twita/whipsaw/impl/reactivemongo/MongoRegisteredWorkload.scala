@@ -1,5 +1,7 @@
 package twita.whipsaw.impl.reactivemongo
 
+import java.time.Instant
+
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
@@ -99,7 +101,8 @@ extends ReactiveMongoDomainObjectGroup[EventId, RegisteredWorkload, RegisteredWo
 
   override def list(q: DomainObjectGroup.Query): Future[List[RegisteredWorkload]] = ???
 
-  override def getRunnable: Future[List[RegisteredWorkload]] = getListByJsonCrit(Json.obj("schedulingStatus" -> SchedulingStatus.Init))
+  override def getRunnable: Future[List[RegisteredWorkload]] =
+    getListByJsonCrit(Json.obj("stats.runAt" -> Json.obj("$lt" -> Instant.now)))
 
   override def apply(event: RegisteredWorkloads.Event, parent: Option[BaseEvent[EventId]]): Future[RegisteredWorkload] = ???
 }
