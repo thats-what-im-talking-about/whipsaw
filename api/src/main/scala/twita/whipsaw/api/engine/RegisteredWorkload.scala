@@ -88,7 +88,7 @@ trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
 
   def factoryType: String
   def stats: WorkloadStatistics
-  def refresh: Future[RegisteredWorkload]
+  def refresh(): Future[RegisteredWorkload]
 }
 
 object RegisteredWorkload {

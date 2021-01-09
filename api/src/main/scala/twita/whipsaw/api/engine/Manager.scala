@@ -3,6 +3,8 @@ package twita.whipsaw.api.engine
 import java.time.Instant
 
 import akka.actor.Actor
+import akka.actor.ActorLogging
+import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Cancellable
 import akka.actor.PoisonPill
@@ -22,64 +24,58 @@ import scala.concurrent.Future
 
 trait WorkloadEvent
 
-class WorkloadStatsTracker(manager: Manager) extends Actor {
-  override def receive: Receive = receiveOther(WorkloadStatistics(), List.empty, None)
+class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 
-  def receiveOther(
+  override def receive: Receive = activated(WorkloadStatistics(), Map.empty, None)
+
+  def activated(
       workloadStatistics: WorkloadStatistics
-    , probes: List[Probe]
+    , probes: Map[WorkloadId, ActorRef]
     , timer: Option[Cancellable]
   ): Receive = {
+    // Update stats, start a timer if one is not set.
     case updateStats: WorkloadStatistics if timer.isEmpty =>
       val timer = probes.headOption.map { _ =>
         context.system.scheduler.scheduleOnce(1.second) {
           self ! WorkloadStatsTracker.Report
         }
       }
-      context.become(receiveOther(workloadStatistics(updateStats), probes, timer))
+      context.become(activated(workloadStatistics(updateStats), probes, timer))
 
+    // Update stats only
     case updateStats: WorkloadStatistics =>
-      context.become(receiveOther(workloadStatistics(updateStats), probes, timer))
+      context.become(activated(workloadStatistics(updateStats), probes, timer))
 
+    // Report the current WorkloadStats to all subscribing probes
     case WorkloadStatsTracker.Report =>
-      probes.map(_.report(workloadStatistics))
-      context.become(receiveOther(workloadStatistics, probes, None))
+      probes.foreach { case (workloadId, probe) => probe ! workloadStatistics }
+      context.become(activated(workloadStatistics, probes, None))
 
+    // Persist the WorkloadStats object into the workload
     case WorkloadStatsTracker.SaveStats => manager.workload.stats = workloadStatistics
 
-    case WorkloadStatsTracker.AddProbe(probe) =>
-      context.become(receiveOther(workloadStatistics, probes :+ probe, timer))
+    case WorkloadStatsTracker.AddProbe(workloadId, probe) =>
+      context.become(activated(workloadStatistics, probes + (workloadId -> probe), timer))
 
     case WorkloadStatsTracker.Deactivate(nextRunAt) =>
       self ! WorkloadStatsTracker.SaveStats
-      probes.map(_.deactivate())
-      context.become(deactivating(workloadStatistics(WorkloadStatistics(runAt = nextRunAt)), probes, timer))
+      probes.foreach { case (_, probe) => probe ! Probe.Deactivate }
+      context.become(deactivating(workloadStatistics(WorkloadStatistics(runAt = nextRunAt)), timer))
   }
 
-  def deactivating(
-      workloadStatistics: WorkloadStatistics
-    , probes: List[Probe]
-    , timer: Option[Cancellable] = None
-  ): Receive = {
-    case WorkloadStatsTracker.SaveStats => (manager.workload.stats = workloadStatistics)
-      .map(_ => WorkloadStatsTracker.Deactivate)
-      .pipeTo(self)
-    case WorkloadStatsTracker.Deactivate =>
-      println(s"Deactivating.  stats are ${workloadStatistics}")
+  def deactivating(workloadStatistics: WorkloadStatistics, timer: Option[Cancellable] = None): Receive = {
+    case WorkloadStatsTracker.SaveStats => pipe(manager.workload.stats = workloadStatistics).to(self)
+    case workloadStats =>
       timer.map(_.cancel())
       self ! PoisonPill
-    case msg => println(s"dropping ${msg}")
   }
-
-  override def preStart(): Unit = println("preStart: WorkloadStatsTracker")
-
-  override def postStop(): Unit = println("postStop: WorkloadStatsTracker")
 }
 
 object WorkloadStatsTracker {
   case object SaveStats
-  case class AddProbe(probe: Probe)
+  case class AddProbe(workloadId: WorkloadId, probe: ActorRef)
+  case class RemoveProbe(workloadId: WorkloadId)
   case class Deactivate(nextRunAt: Option[Instant])
   case object Report
 }
@@ -92,10 +88,6 @@ trait Manager {
   def director: Director
 
   lazy val statsTracker = actorSystem.actorOf(Props(new WorkloadStatsTracker(this)), s"stats-tracker-${workload.id.value}")
-
-  def addProbe(probe: Probe) = {
-    statsTracker ! WorkloadStatsTracker.AddProbe(probe)
-  }
 
   def executeWorkload()(implicit m: Materializer): Future[(SchedulingStatus, ProcessingStatus)] = {
     director.managers.activate(this)

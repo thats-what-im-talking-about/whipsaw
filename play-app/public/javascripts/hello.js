@@ -2,7 +2,7 @@ if (window.console) {
   console.log("Welcome to your Play application's JavaScript!");
 }
 
-const startMonitor = function() {
+const createMonitorWebsocket = function() {
   console.log("starting a monitor websocket");
   const webSocket = new WebSocket("ws://localhost:9000/ws");
 
@@ -13,5 +13,7 @@ const startMonitor = function() {
   webSocket.onopen = function (event) {
     webSocket.send("Here's some text that the server is urgently awaiting!");
   };
+
+  return webSocket;
 }
 

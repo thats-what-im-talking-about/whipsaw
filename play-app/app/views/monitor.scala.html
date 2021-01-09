@@ -17,7 +17,9 @@
      *@
 <h1>Workload Monitor</h1>
 
+<input type="text" name="workloadId" onblur="socket.send(this.value)"/>
+
 <script>
- startMonitor();
+ var socket = createMonitorWebsocket();
 </script>
 }

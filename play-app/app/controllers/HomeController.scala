@@ -1,23 +1,14 @@
 package twita.whipsaw.play.controllers
 
-import akka.Done
-import akka.actor.ActorRef
 import akka.actor.ActorSystem
-import akka.stream.CompletionStrategy
 import akka.stream.Materializer
-import akka.stream.OverflowStrategy
-import akka.stream.scaladsl.Flow
-import akka.stream.scaladsl.Sink
-import akka.stream.scaladsl.Source
 import controllers.AssetsFinder
-import play.api.libs.json.JsObject
 import play.api.libs.json.Json
+import play.api.libs.streams.ActorFlow
 import play.api.mvc.AbstractController
 import play.api.mvc.ControllerComponents
 import play.api.mvc.WebSocket
 import twita.whipsaw.api.engine
-import twita.whipsaw.api.engine.ForWorkload
-import twita.whipsaw.api.engine.Monitor
 import twita.whipsaw.api.engine.MonitorActor
 import twita.whipsaw.app.workloads.MetadataRegistry
 import twita.whipsaw.app.workloads.processors.AppenderParams
@@ -48,19 +39,8 @@ class HomeController(cc: ControllerComponents, workloadDirector: engine.Director
     Ok(views.html.monitor("Welcome to the Whipsaw Workload Monitor"))
   }
 
-  def src: Source[String, ActorRef] = Source.actorRef(
-    completionMatcher = { case Done => CompletionStrategy.immediately },
-    failureMatcher = PartialFunction.empty,
-    bufferSize = 100,
-    overflowStrategy = OverflowStrategy.dropHead
-  )
-
   def websocket = WebSocket.accept[String, String] { implicit req =>
-    val (actor, newSrc) = src.preMaterialize()
-    val out = newSrc.map { s => println(s"received ${s}"); s }
-    val in = Sink.foreach[String] { s => println(s"passing through to ${s}"); actor ! s }
-    val monitor = new Monitor(workloadDirector, actor)
-    Flow.fromSinkAndSource(in, out)
+    ActorFlow.actorRef { out => MonitorActor.props(workloadDirector, out) }
   }
 
   def start(numItems: Int, name: String) = Action.async { implicit request =>

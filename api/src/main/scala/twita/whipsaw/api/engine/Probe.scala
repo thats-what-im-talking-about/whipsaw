@@ -1,64 +1,51 @@
 package twita.whipsaw.api.engine
 
-import akka.actor.ActorSystem
+import akka.actor.Actor
+import akka.actor.ActorLogging
 import akka.actor.Cancellable
-import twita.dominion.api.DomainObjectGroup.byId
-import twita.whipsaw.api.workloads.WorkloadId
+import akka.pattern.pipe
+import twita.whipsaw.api.engine.WorkloadStatsTracker.AddProbe
 import twita.whipsaw.api.workloads.WorkloadStatistics
 
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Success
-import scala.util.Failure
 
-class Probe(val monitor: Monitor, workloads: RegisteredWorkloads, val workload: RegisteredWorkload)(implicit actorSystem: ActorSystem) {
-  implicit val executionContext = actorSystem.dispatcher
-  private var _timer: Option[Cancellable] = None
+class Probe(workload: RegisteredWorkload, director: Director) extends Actor with ActorLogging {
+  implicit def executionContext = context.system.dispatcher
 
-  deactivate()
+  def timer = context.system.scheduler.scheduleAtFixedRate(5.seconds, 5.seconds, self, Probe.CheckActive)
 
-  def report(workloadStatistics: WorkloadStatistics) = {
-    println(s"reporting ${workloadStatistics}")
-    monitor.monitorActor ! MonitorActor.WorkloadReport(workload.id, workloadStatistics)
+  override def receive: Receive = deactivated(timer)
+
+  override def preStart(): Unit = {
+    self ! Probe.CheckActive
   }
 
-  def activate(manager: Manager) = {
-    _timer.map(_.cancel())
-    _timer = None
-    manager.addProbe(this)
+  override def postStop(): Unit = log.warning(s"stopped Probe of workload id ${workload.id}")
+
+  def activated(): Receive = {
+    case stats: WorkloadStatistics => context.parent ! MonitorActor.WorkloadReport(workload.id, stats)
+    case manager: Manager => manager.statsTracker ! AddProbe(workload.id, self)
+    case Probe.Deactivate =>
+      context.become(deactivated(timer))
   }
 
-  def deactivate() =
-    _timer = Some(actorSystem.scheduler.scheduleAtFixedRate(5.seconds, 5.seconds)(new Refresh(this, workload.id, workloads)))
-}
-
-class Refresh(probe: Probe, workloadId: WorkloadId, workloads: RegisteredWorkloads) extends Runnable {
-  import scala.concurrent.ExecutionContext.Implicits.global
-  override def run = {
-    refresh().onComplete {
-      case Success(t) => println(t)
-      case Failure(t) => t.printStackTrace()
-    }
-  }
-
-  def refresh(): Future[Unit] = {
-    probe.monitor.director.managers.lookup(workloadId) match {
+  def deactivated(timer: Cancellable, stats: Option[WorkloadStatistics] = None): Receive = {
+    case Probe.CheckActive => director.managers.lookup(workload.id) match {
       case Some(manager) =>
-        println("Found a manager!  Activating")
-        probe.activate(manager)
-        Future.unit
+        self ! manager
+        timer.cancel()
+        context.become(activated())
       case None =>
-        println("No manager!  Reporting")
-        println(probe.monitor.director.registeredWorkloads == workloads)
-        workloads.get(byId(workloadId)).map {
-          case Some(refreshedWorkload) =>
-            println(s"refreshed stats: ${refreshedWorkload.stats}")
-            refreshedWorkload.stats
-          case None => ???
-        }
+        pipe(workload.refresh()).to(self)
     }
+    case refreshedWorkload: RegisteredWorkload =>
+      if(!stats.exists(_ == refreshedWorkload.stats))
+        context.parent ! MonitorActor.WorkloadReport(refreshedWorkload.id, refreshedWorkload.stats)
+      context.become(deactivated(timer, Some(workload.stats)))
   }
 }
 
+object Probe {
+  case object Deactivate
+  case object CheckActive
+}

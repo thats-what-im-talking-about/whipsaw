@@ -1,53 +1,39 @@
 package twita.whipsaw.api.engine
 
 import akka.actor.Actor
+import akka.actor.ActorLogging
 import akka.actor.ActorRef
-import akka.actor.ActorSystem
 import akka.actor.Cancellable
 import akka.actor.Props
+import akka.pattern.pipe
 import play.api.libs.json.Json
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.api.workloads.WorkloadStatistics
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-sealed trait WorkloadFilter
-
-case class ForWorkload(workloadId: WorkloadId) extends WorkloadFilter
-
-class Monitor(val director: Director, observer: ActorRef)(implicit actorSystem: ActorSystem) {
-  def addFilter(filter: WorkloadFilter)(implicit executionContext: ExecutionContext) = filter match {
-    case ForWorkload(workloadId) =>
-      director.registeredWorkloads.get(byId(workloadId)).map {
-        case Some(rw) => new Probe(this, director.registeredWorkloads, rw)
-        case None => throw new RuntimeException(s"workload ${workloadId} not found.")
-      }
-  }
-
-  val monitorActor = actorSystem.actorOf(Props[MonitorActor], s"monitor-actor")
-  monitorActor ! MonitorActor.AddObserver(observer)
-}
-
 object MonitorActor {
+  def props(director: Director, out: ActorRef) = Props(new MonitorActor(director, out))
+
   case class WorkloadReport(id: WorkloadId, stats: WorkloadStatistics)
   case object Emit
   case class AddObserver(observer: ActorRef)
+
+  val forWorkloadId = """addWorkloadId:(.*)""".r
 }
 
-class MonitorActor extends Actor {
+class MonitorActor(director: Director, out: ActorRef) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 
-  override def receive: Receive = withData()
+  override def receive: Receive = activeState()
 
-  override def preStart(): Unit = {
-    println("Starting up a monitor...")
-  }
+  override def preStart(): Unit = log.info("Starting up a new monitor")
 
-  def withData(
+  override def postStop(): Unit = log.info("Monitor shutdown complete")
+
+  def activeState(
       data: Map[WorkloadId, WorkloadStatistics] = Map.empty
-    , observer: Option[ActorRef] = None
     , setToReport: Set[WorkloadId] = Set.empty
     , timer: Option[Cancellable] = None
   ): Receive = {
@@ -56,17 +42,22 @@ class MonitorActor extends Actor {
       val newTimer = context.system.scheduler.scheduleOnce(1.second) {
         self ! MonitorActor.Emit
       }
-      context.become(withData(data + (id -> stats), observer, setToReport + id, Some(newTimer)))
+      context.become(activeState(data + (id -> stats), setToReport + id, Some(newTimer)))
 
     case MonitorActor.WorkloadReport(id, stats) =>
-      context.become(withData(data + (id -> stats), observer, setToReport + id, timer))
+      context.become(activeState(data + (id -> stats), setToReport + id, timer))
 
     case MonitorActor.Emit =>
       val report = setToReport.map(id => id.value -> data(id)).toMap
-      observer.map { o => o ! Json.toJson(report).toString }
-      context.become(withData(data, observer, Set.empty, None))
+      out ! Json.toJson(report).toString
+      context.become(activeState(data, Set.empty, None))
 
-    case MonitorActor.AddObserver(observer) =>
-      context.become(withData(observer = Some(observer)))
+    case Some(workload: RegisteredWorkload) => context.actorOf(Props(new Probe(workload, director)))
+
+    case str: String => str match {
+      case MonitorActor.forWorkloadId(id) =>
+        pipe(director.registeredWorkloads.get(byId(WorkloadId(id)))).to(self)
+      case message => log.warning("Unknown message {}", message)
+    }
   }
 }
