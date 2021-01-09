@@ -10,7 +10,7 @@ case class WorkloadStatistics(
   , scheduledForRetry: Long = 0
   , completed: Long = 0
   , error: Long = 0
-  , runAt: Option[Instant] = None
+  , runAt: Option[Instant] = Some(Instant.now)
 ) {
   def apply(that: WorkloadStatistics): WorkloadStatistics = {
     copy(

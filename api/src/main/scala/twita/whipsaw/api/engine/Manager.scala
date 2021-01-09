@@ -11,6 +11,7 @@ import akka.actor.PoisonPill
 import akka.actor.Props
 import akka.pattern.pipe
 import akka.stream.Materializer
+import twita.whipsaw.api.engine.WorkloadStatsTracker.SaveStats
 import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
@@ -148,7 +149,8 @@ trait Manager {
 
     for {
       stats <- wl.stats
-      _ = statsTracker ! stats
+      _ = statsTracker ! stats.copy(runAt = None)
+      _ = statsTracker ! SaveStats
       sStatus <- scheduledItemsFt
       pStatus <- processResult
     } yield {
