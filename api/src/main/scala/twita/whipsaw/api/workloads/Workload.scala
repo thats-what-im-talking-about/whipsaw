@@ -18,6 +18,7 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.whipsaw.monitor.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

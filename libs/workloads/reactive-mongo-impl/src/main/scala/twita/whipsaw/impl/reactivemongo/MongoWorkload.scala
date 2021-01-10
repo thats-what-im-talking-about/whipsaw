@@ -24,7 +24,7 @@ import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
 import reactivemongo.play.json.compat._
-import twita.whipsaw.api.workloads.WorkloadStatistics
+import twita.whipsaw.monitor.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

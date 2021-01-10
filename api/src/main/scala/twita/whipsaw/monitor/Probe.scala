@@ -1,11 +1,13 @@
-package twita.whipsaw.api.engine
+package twita.whipsaw.monitor
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.Cancellable
 import akka.pattern.pipe
-import twita.whipsaw.api.engine.WorkloadStatsTracker.AddProbe
-import twita.whipsaw.api.workloads.WorkloadStatistics
+import twita.whipsaw.api.engine.Director
+import twita.whipsaw.api.engine.Manager
+import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.monitor.WorkloadStatsTracker.AddProbe
 
 import scala.concurrent.duration._
 

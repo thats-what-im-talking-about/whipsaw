@@ -9,10 +9,10 @@ import play.api.mvc.AbstractController
 import play.api.mvc.ControllerComponents
 import play.api.mvc.WebSocket
 import twita.whipsaw.api.engine
-import twita.whipsaw.api.engine.MonitorActor
 import twita.whipsaw.app.workloads.MetadataRegistry
 import twita.whipsaw.app.workloads.processors.AppenderParams
 import twita.whipsaw.app.workloads.schdulers.ItemCountParams
+import twita.whipsaw.monitor.MonitorActor
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

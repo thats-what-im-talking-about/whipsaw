@@ -1,4 +1,4 @@
-package twita.whipsaw.api.workloads
+package twita.whipsaw.monitor
 
 import java.time.Instant
 

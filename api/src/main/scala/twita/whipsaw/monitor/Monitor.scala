@@ -1,4 +1,4 @@
-package twita.whipsaw.api.engine
+package twita.whipsaw.monitor
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
@@ -8,8 +8,9 @@ import akka.actor.Props
 import akka.pattern.pipe
 import play.api.libs.json.Json
 import twita.dominion.api.DomainObjectGroup.byId
+import twita.whipsaw.api.engine.Director
+import twita.whipsaw.api.engine.RegisteredWorkload
 import twita.whipsaw.api.workloads.WorkloadId
-import twita.whipsaw.api.workloads.WorkloadStatistics
 
 import scala.concurrent.duration._
 
@@ -27,10 +28,6 @@ class MonitorActor(director: Director, out: ActorRef) extends Actor with ActorLo
   implicit val executionContext = context.dispatcher
 
   override def receive: Receive = activeState()
-
-  override def preStart(): Unit = log.info("Starting up a new monitor")
-
-  override def postStop(): Unit = log.info("Monitor shutdown complete")
 
   def activeState(
       data: Map[WorkloadId, WorkloadStatistics] = Map.empty
