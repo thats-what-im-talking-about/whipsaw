@@ -18,7 +18,6 @@ import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.Query
 import twita.dominion.api.EmptyEventFmt
-import twita.whipsaw.api.engine.WorkloadEvent
 import twita.whipsaw.api.workloads.ItemResult.Done
 import twita.whipsaw.api.workloads.ItemResult.Reschedule
 import twita.whipsaw.api.workloads.ItemResult.Retry
@@ -84,7 +83,7 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
     }
   } yield itemResult
 
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator with WorkloadEvent
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class StartedProcessing(at: Instant = Instant.now) extends Event
   object StartedProcessing { implicit val fmt = Json.format[StartedProcessing] }
@@ -113,7 +112,7 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
 
   def nextRunAt: Future[Option[Instant]]
 
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator with WorkloadEvent
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class WorkItemAdded(payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
   object WorkItemAdded { implicit val fmt = Json.format[WorkItemAdded] }

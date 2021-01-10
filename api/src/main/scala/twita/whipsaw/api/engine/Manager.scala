@@ -23,8 +23,6 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-trait WorkloadEvent
-
 class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 

@@ -21,7 +21,6 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
-import twita.whipsaw.api.engine.WorkloadEvent
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.WorkItemId

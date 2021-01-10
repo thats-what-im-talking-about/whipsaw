@@ -18,7 +18,6 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
-import twita.whipsaw.api.engine.WorkloadEvent
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -136,7 +135,7 @@ extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def ppFmt: OFormat[PParams]
   override type AllowedEvent = Event
 
-  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator with WorkloadEvent
+  sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
   object Created { implicit val fmt = Json.format[Created] }
