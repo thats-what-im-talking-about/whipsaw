@@ -48,6 +48,9 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     */
   override def activate(manager: Manager): Future[Unit] = {
     println(s"adding manager for worklaod ${manager.workload.id}")
+    manager.workload.stats.flatMap { stats =>
+      manager.workload.stats = stats.copy(runAt = None)
+    }
     //Future.successful(_managers.put(manager.workload.id, manager))
     Future.unit
   }
