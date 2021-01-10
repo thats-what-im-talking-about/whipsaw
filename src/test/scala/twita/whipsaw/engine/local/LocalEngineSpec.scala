@@ -2,14 +2,11 @@ package twita.whipsaw.engine.local
 
 import akka.actor.Actor
 import akka.actor.ActorSystem
-import akka.actor.Props
 import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
-import twita.whipsaw.api.engine.ForWorkload
-import twita.whipsaw.api.engine.Monitor
 import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.impl.engine.localFunctions.LocalDirector
@@ -23,7 +20,6 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   val director = new LocalDirector(TestApp.SampleRegistryEntry, new MongoRegisteredWorkloads())
   val workloadFactory = director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
   var workloadId: WorkloadId = _
-  var monitor: Monitor = _
 
   "workloads" should "be created" in {
     for {
@@ -45,15 +41,6 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
       rw <- director.registeredWorkloads.get(byId(workloadId))
     } yield {
       assert(rw.map(_.stats).isDefined)
-    }
-  }
-
-  "probes" should "be added for individual workloads" in {
-    monitor = new Monitor(director, actorSystem.actorOf(Props[TestMonitor], "testMonitor"))
-    for {
-      result <- monitor.addFilter(ForWorkload(workloadId))
-    } yield {
-      assert(result.workload.id == workloadId)
     }
   }
 
