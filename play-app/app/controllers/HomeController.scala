@@ -15,12 +15,12 @@ import twita.whipsaw.app.workloads.processors.AppenderParams
 import twita.whipsaw.app.workloads.schdulers.ItemCountParams
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
 
 
-/**
- * This controller creates an `Action` to handle HTTP requests to the
- * application's home page.
- */
+case class LaunchWorkloadRequest(name: String, items: Int)
+object LaunchWorkloadRequest { implicit val fmt = Json.format[LaunchWorkloadRequest] }
+
 class HomeController(cc: ControllerComponents, workloadDirector: engine.Director)(
   implicit assetsFinder: AssetsFinder, system: ActorSystem, mat: Materializer, executionContext: ExecutionContext
 ) extends AbstractController(cc) {
@@ -36,16 +36,27 @@ class HomeController(cc: ControllerComponents, workloadDirector: engine.Director
   }
 
   def monitor = Action {
-    Ok(views.html.monitor("Welcome to the Whipsaw Workload Monitor"))
+    Ok(views.html.monitor())
   }
 
   def websocket = WebSocket.accept[String, String] { implicit req =>
     ActorFlow.actorRef { out => MonitorActor.props(workloadDirector, out) }
   }
 
+  def launchWorkload = Action.async(cc.parsers.json) { implicit req =>
+    req.body.validate[LaunchWorkloadRequest].fold(
+        invalid => Future.successful(BadRequest(invalid.toString))
+      , parsed => {
+          val factory = workloadDirector.registry(MetadataRegistry.sample)
+          for {
+            workload <- factory(factory.Created(parsed.name, ItemCountParams(parsed.items), AppenderParams("PrOcEsSeD")))
+          } yield Ok(Json.toJson(workload.id))
+        }
+    )
+  }
+
   def start(numItems: Int, name: String) = Action.async { implicit request =>
     val factory = workloadDirector.registry(MetadataRegistry.sample)
-
     for {
       workload <- factory(factory.Created(name, ItemCountParams(numItems), AppenderParams("PrOcEsSeD")))
     } yield Ok(Json.toJson(workload.id))

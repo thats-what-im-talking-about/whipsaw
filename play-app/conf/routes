@@ -6,6 +6,8 @@
 GET     /                           twita.whipsaw.play.controllers.HomeController.index
 GET     /ws                         twita.whipsaw.play.controllers.HomeController.websocket
 GET     /start                      twita.whipsaw.play.controllers.HomeController.start(numItems: Int, name: String)
++nocsrf
+POST    /launch                     twita.whipsaw.play.controllers.HomeController.launchWorkload
 GET     /monitor                    twita.whipsaw.play.controllers.HomeController.monitor
 
 # Map static resources from the /public folder to the /assets URL path

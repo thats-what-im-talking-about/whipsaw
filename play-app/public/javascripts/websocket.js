@@ -16,4 +16,3 @@ const createMonitorWebsocket = function() {
 
   return webSocket;
 }
-
