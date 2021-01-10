@@ -86,19 +86,16 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
 
   override def stats: Future[WorkloadStatistics] = Future.successful(obj.stats)
 
-  override def stats_=(workloadStatistics: WorkloadStatistics): Future[WorkloadStatistics] =
+  override def stats_=(workloadStatistics: WorkloadStatistics): Future[WorkloadStatistics] = {
+    val setStats = Json.obj("$set" -> Json.obj("stats" -> Json.toJson(workloadStatistics)))
+    val unsetStats = Json.obj("$unset" -> Json.obj("stats.runAt" -> 1))
+
     for {
       objColl <- objCollectionFt
-      updateResult <- objColl.update(ordered=false).one(
-          Json.obj("_id" -> Json.toJson(id))
-        , Json.obj("$set" -> Json.obj("stats" -> Json.toJson(workloadStatistics))) ++ (
-            workloadStatistics.runAt match {
-              case None => Json.obj("$unset" -> Json.obj("stats.runAt" -> 1))
-              case _ => Json.obj()
-            }
-          )
-      )
+      setResult <- objColl.update(ordered = false).one(Json.obj("_id" -> Json.toJson(id)), setStats)
+      unsetResult <- objColl.update(ordered = false).one(Json.obj("_id" -> Json.toJson(id)), unsetStats) if workloadStatistics.runAt.isEmpty
     } yield workloadStatistics
+  }
 
   override def apply(
       event: AllowedEvent
