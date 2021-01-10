@@ -35,7 +35,8 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
   override def lookup(workloadId: WorkloadId): Option[Manager] = _managers.get(workloadId)
 
   /**
-    * Adds a Manager instance to this Managers collection, and then "activates" the workload.
+    * Adds a Manager instance to this Managers collection, and then "activates" the workload.  If there is already
+    * a Manager present for the workload, we just return that manager as-is (without invoking the workload).
     *
     * @param manager Manager of the workload to be activated
     */

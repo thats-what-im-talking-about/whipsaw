@@ -50,7 +50,9 @@ trait Director {
       listToRun <- registeredWorkloads.getRunnable
       runnables <- Future.traverse(listToRun) { rw => registry(rw)}
       managerSeq <- Future.traverse(runnables) { runnable => managers.forWorkload(runnable) }
-      processed <- Future.traverse(managerSeq) { manager => manager.executeWorkload().map(manager.workload.id -> _) }
+      processed <- Future.traverse(managerSeq) { manager =>
+        managers.activate(manager).map(o => o.workload.id -> (o.workload.schedulingStatus, o.workload.processingStatus))
+      }
     } yield processed
   }
 }
