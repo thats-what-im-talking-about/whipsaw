@@ -130,15 +130,13 @@ trait Manager {
               case _ => ProcessingStatus.Completed
             }
           _ <- wl(wl.ProcessingStatusUpdated(status))
-        } yield result).flatMap { numProcessed =>
+        } yield (result, nextRunAt)).flatMap { case (numProcessed, nextRunAt) =>
           statsTracker ! WorkloadStatsTracker.SaveStats
           Thread.sleep(500)
           numProcessed match {
             case 0 if last =>
-              workload.workItems.nextRunAt.map { nextRunAt =>
-                statsTracker ! WorkloadStatsTracker.Deactivate(nextRunAt)
-                wl.processingStatus
-              }
+              statsTracker ! WorkloadStatsTracker.Deactivate(nextRunAt)
+              Future.successful(wl.processingStatus)
             case 0 => processRunnablesFt(true)
             case n => processRunnablesFt(false)
           }
@@ -149,8 +147,7 @@ trait Manager {
 
     for {
       stats <- wl.stats
-      _ = statsTracker ! stats.copy(runAt = None)
-      _ = statsTracker ! SaveStats
+      _ = statsTracker ! stats
       sStatus <- scheduledItemsFt
       pStatus <- processResult
     } yield {
