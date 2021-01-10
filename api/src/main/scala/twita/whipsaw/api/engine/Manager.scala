@@ -78,11 +78,11 @@ trait Manager {
         }
     }
 
-    val processResult = processRunnablesFt(false)
+    lazy val processResult = processRunnablesFt(false)
+
+    statsTracker ! wl.stats
 
     for {
-      stats <- wl.stats
-      _ = statsTracker ! stats
       sStatus <- scheduledItemsFt
       pStatus <- processResult
     } yield {
@@ -111,7 +111,7 @@ trait Managers {
     * Adds a Manager instance to this Managers collection, and then "activates" the workload.
     * @param manager Manager of the workload to be activated
     */
-  def activate(manager: Manager): Future[Unit]
+  def activate(manager: Manager): Future[Manager]
 
   /**
     * Removes a Manager instance from this Managers collection, and then "deactivates" the workload.

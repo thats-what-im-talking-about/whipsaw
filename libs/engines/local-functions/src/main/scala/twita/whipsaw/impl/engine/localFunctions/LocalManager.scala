@@ -27,16 +27,9 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     Future.successful(new LocalManager(director, workload))
 
   override def forWorkloadId(workloadId: WorkloadId): Future[Manager] =
-    lookup(workloadId) match {
-      case Some(manager) => Future.successful(manager)
-      case None =>
-        director.registeredWorkloads.get(DomainObjectGroup.byId(workloadId)).flatMap {
-          case Some(rw) => director.registry(rw).map(new LocalManager(director, _))
-          case _ => Future.failed(new IllegalStateException(s"WorkloadId not found: ${workloadId}"))
-        }.map { manager =>
-          _managers.put(workloadId, manager)
-          manager
-        }
+    director.registeredWorkloads.get(DomainObjectGroup.byId(workloadId)).flatMap {
+      case Some(rw) => director.registry(rw).map(new LocalManager(director, _))
+      case _ => Future.failed(new IllegalStateException(s"WorkloadId not found: ${workloadId}"))
     }
 
   override def lookup(workloadId: WorkloadId): Option[Manager] = _managers.get(workloadId)
@@ -46,22 +39,19 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     *
     * @param manager Manager of the workload to be activated
     */
-  override def activate(manager: Manager): Future[Unit] = {
-    println(s"adding manager for worklaod ${manager.workload.id}")
-    manager.workload.stats.flatMap { stats =>
-      manager.workload.stats = stats.copy(runAt = None)
+  override def activate(manager: Manager): Future[Manager] =
+    lookup(manager.workload.id) match {
+      case Some(m) => Future.successful(m)
+      case None =>
+        _managers.put(manager.workload.id, manager)
+        manager.executeWorkload().map(_ => manager)
     }
-    //Future.successful(_managers.put(manager.workload.id, manager))
-    Future.unit
-  }
 
   /**
     * Removes a Manager instance from this Managers collection, and then "deactivates" the workload.
     *
     * @param manager Manager of the workload to be deactivated
     */
-  override def deactivate(manager: Manager): Future[Unit] = {
-    println(s"removing manager for worklaod ${manager.workload.id}")
+  override def deactivate(manager: Manager): Future[Unit] =
     Future.successful(_managers.remove(manager.workload.id))
-  }
 }

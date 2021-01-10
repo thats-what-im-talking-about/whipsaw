@@ -100,8 +100,7 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   def batchSize: Int = 100
   def desiredNumWorkers: Int = 50
 
-  def stats: Future[WorkloadStatistics]
-  def stats_=(workloadStatistics: WorkloadStatistics): Future[WorkloadStatistics]
+  def stats: WorkloadStatistics
 
   // This is needed to prevent a compiler error that deals with the generic expansion of the various events that
   // are part of this trait:
@@ -128,6 +127,9 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
 
   case class ProcessingStatusUpdated(processingStatus: ProcessingStatus) extends Event
   object ProcessingStatusUpdated { implicit val fmt = Json.format[ProcessingStatusUpdated] }
+
+  case class StatsUpdated(stats: WorkloadStatistics) extends Event
+  object StatsUpdated { implicit val fmt = Json.format[StatsUpdated] }
 }
 
 trait WorkloadFactory[Payload, SParams, PParams]

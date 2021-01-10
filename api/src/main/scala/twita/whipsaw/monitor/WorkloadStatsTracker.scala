@@ -9,6 +9,7 @@ import akka.actor.Cancellable
 import akka.actor.PoisonPill
 import akka.pattern.pipe
 import twita.whipsaw.api.engine.Manager
+import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.duration._
@@ -17,6 +18,8 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 
   override def receive: Receive = activated(WorkloadStatistics(), Map.empty, None)
+
+  val wl = manager.workload
 
   def activated(
       workloadStatistics: WorkloadStatistics
@@ -42,7 +45,7 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
       context.become(activated(workloadStatistics, probes, None))
 
     // Persist the WorkloadStats object into the workload
-    case WorkloadStatsTracker.SaveStats => manager.workload.stats = workloadStatistics
+    case WorkloadStatsTracker.SaveStats => wl(wl.StatsUpdated(workloadStatistics))
 
     case WorkloadStatsTracker.AddProbe(workloadId, probe) =>
       context.become(activated(workloadStatistics, probes + (workloadId -> probe), timer))
@@ -54,9 +57,9 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   }
 
   def deactivating(workloadStatistics: WorkloadStatistics, timer: Option[Cancellable] = None): Receive = {
-    case WorkloadStatsTracker.SaveStats => pipe(manager.workload.stats = workloadStatistics).to(self)
-    case workloadStats =>
-      timer.map(_.cancel())
+    case WorkloadStatsTracker.SaveStats => pipe(wl(wl.StatsUpdated(workloadStatistics))).to(self)
+    case workload: Workload[_, _, _] =>
+      timer.foreach(_.cancel())
       self ! PoisonPill
   }
 }
