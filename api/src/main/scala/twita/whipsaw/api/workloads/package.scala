@@ -26,6 +26,4 @@ package object workloads {
   trait EventIdGenerator extends IdGenerator[EventId] {
     override def generateId: EventId = EventId(UUID.randomUUID().toString)
   }
-
-
 }

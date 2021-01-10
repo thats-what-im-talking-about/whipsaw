@@ -20,8 +20,11 @@ import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.api.workloads.WorkloadId
+import reactivemongo.play.json.compat._
+import twita.whipsaw.monitor.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -34,6 +37,7 @@ case class WorkloadDoc[SParams: OFormat, PParams: OFormat] (
   , processorParams: PParams
   , schedulingStatus: SchedulingStatus = SchedulingStatus.Init
   , processingStatus: ProcessingStatus = ProcessingStatus.Init
+  , stats: WorkloadStatistics = WorkloadStatistics()
 ) extends BaseDoc[WorkloadId]
 
 object WorkloadDoc {
@@ -43,7 +47,7 @@ object WorkloadDoc {
 trait WorkloadDescriptor[Payload, SParams, PParams]
 extends ObjectDescriptor[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
 {
-  implicit def mongoContext: MongoContext
+  implicit def mongoContext: MongoContext with WorkloadContext
   implicit def pFmt: OFormat[Payload]
   implicit def spFmt: OFormat[SParams]
   implicit def ppFmt: OFormat[PParams]
@@ -60,7 +64,7 @@ extends ObjectDescriptor[EventId, Workload[Payload, SParams, PParams], WorkloadD
 class MongoWorkload[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     val metadata: Metadata[Payload, SParams, PParams]
   , protected val underlying: Either[Empty[WorkloadId], WorkloadDoc[SParams, PParams]]
-)(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext)
+)(implicit executionContext: ExecutionContext, override val mongoContext: MongoContext with WorkloadContext)
 extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
   with WorkloadDescriptor[Payload, SParams, PParams]
   with Workload[Payload, SParams, PParams]
@@ -80,12 +84,16 @@ extends ReactiveMongoObject[EventId, Workload[Payload, SParams, PParams], Worklo
 
   override def processingStatus: ProcessingStatus = obj.processingStatus
 
+  override def stats: WorkloadStatistics = obj.stats
+
+
   override def apply(
       event: AllowedEvent
     , parent: Option[BaseEvent[EventId]]
   ) : Future[Workload[Payload, SParams, PParams]] = event match {
     case evt: ScheduleStatusUpdated => update(SetOp(Json.toJsObject(evt)), evt, parent)
     case evt: ProcessingStatusUpdated => update(SetOp(Json.toJsObject(evt)), evt, parent)
+    case evt: StatsUpdated => update(obj.copy(stats = evt.stats), evt, parent)
   }
 }
 
@@ -93,7 +101,7 @@ class MongoWorkloadFactory[Payload: OFormat, SParams: OFormat, PParams: OFormat]
     val metadata: Metadata[Payload, SParams, PParams]
 )(
     implicit executionContext: ExecutionContext
-  , val mongoContext: MongoContext
+  , val mongoContext: MongoContext with WorkloadContext
 )
 extends ReactiveMongoDomainObjectGroup[EventId, Workload[Payload, SParams, PParams], WorkloadDoc[SParams, PParams]]
   with WorkloadDescriptor[Payload, SParams, PParams]

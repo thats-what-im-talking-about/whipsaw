@@ -1,0 +1,47 @@
+@()(implicit assetsFinder: AssetsFinder)
+
+@main("Workload Monitor") {
+
+<header class="blue-grey darken-1 section">
+    <h2 class="center white-text">Whipsaw Monitor</h2>
+    <p class="flow-text grey-text center text-lighten-1">Real-time Workload Tracking</p>
+</header>
+
+<div class="container section">
+    <div class="row">
+        <div class="col s12 m6">
+            <form class="card">
+                <div class="card-content">
+                    <span class="card-title blue-grey-text">Start Workload</span>
+                    <div class="input-field">
+                        <input type="text" id="name">
+                        <label for="name">Workload Name</label>
+                    </div>
+                    <div class="input-field">
+                        <input type="text" id="items">
+                        <label for="items"># Items</label>
+                    </div>
+                    <div class="input-field center">
+                        <button class="btn-large pink white-text">Launch Now!</button>
+                    </div>
+                    <div class="input-field center">
+                        <p class="red-text" id="error"></p>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="col s12 m5 push-m1">
+            <div class="canvas"></div>
+        </div>
+    </div>
+</div>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script src="@assetsFinder.path("javascripts/websocket.js")" type="text/javascript"></script>
+
+<script>
+ var socket = createMonitorWebsocket();
+</script>
+
+<script src="@assetsFinder.path("javascripts/index.js")" type="text/javascript"></script>
+<script src="@assetsFinder.path("javascripts/graph.js")" type="text/javascript"></script>
+}

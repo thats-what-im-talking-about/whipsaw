@@ -8,6 +8,7 @@ import play.api.libs.json.Format
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
+import play.api.libs.json.OWrites
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
@@ -25,6 +26,7 @@ import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.WorkItemId
 import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
@@ -43,7 +45,7 @@ case class WorkItemDoc[Payload] (
 object WorkItemDoc { implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]] }
 
 trait WorkItemDescriptor[Payload] extends ObjectDescriptor[EventId, WorkItem[Payload], WorkItemDoc[Payload]] {
-  implicit def mongoContext: MongoContext
+  implicit def mongoContext: MongoContext with WorkloadContext
   implicit def pFmt: OFormat[Payload]
   protected def workload: Workload[Payload, _, _]
   override protected lazy val collectionName = s"workloads.${workload.id.value}"
@@ -56,7 +58,7 @@ class MongoWorkItem[Payload: OFormat](
     protected val underlying: Either[Empty[WorkItemId], WorkItemDoc[Payload]]
   , protected val workload: Workload[Payload, _, _]
 )(
-  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext
+  implicit executionContext: ExecutionContext, override val mongoContext: MongoContext with WorkloadContext
 ) extends ReactiveMongoObject[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
   with WorkItemDescriptor[Payload]
   with WorkItem[Payload]
@@ -92,6 +94,17 @@ class MongoWorkItem[Payload: OFormat](
           , "$inc" -> Json.obj("retryCount" -> 1)
         ), evt, parent
       )
+    case evt: Rescheduled =>
+      updateVerbose(
+        Json.obj(
+          "$set" -> Json.obj(
+              "payload" -> Json.toJsObject(evt.newPayload)
+            , "finishedProcessingAt" -> Json.toJson(evt.at)
+            , "retryCount" -> Json.toJson(0)
+            , "runAt" -> Json.toJson(evt.newRunAt)
+          )
+        ), evt, parent
+      )
     case evt: MaxRetriesReached =>
       updateVerbose(
         Json.obj("$set" -> Json.obj("errorStoppedProcessingAt" -> Json.toJson(Instant.now))), evt, parent
@@ -100,12 +113,18 @@ class MongoWorkItem[Payload: OFormat](
 }
 
 class MongoWorkItems[Payload: OFormat](protected val workload: Workload[Payload, _, _])(
-  implicit executionContext: ExecutionContext, val mongoContext: MongoContext
+  implicit executionContext: ExecutionContext, val mongoContext: MongoContext with WorkloadContext
 )
   extends ReactiveMongoDomainObjectGroup[EventId, WorkItem[Payload], WorkItemDoc[Payload]]
     with WorkItemDescriptor[Payload]
     with WorkItems[Payload]
 {
+
+  override def nextRunAt: Future[Option[Instant]] = getListByJsonCrit(
+        constraint = Json.obj("runAt" -> Json.obj("$exists" -> true))
+      , sort = Json.obj("runAt" -> 1)
+      , limit = 1
+    ).map(_.headOption.flatMap(_.runAt))
 
   override protected def ensureIndexes(coll: JSONCollection) = {
     val uniqueIndexKeys = workload.metadata.payloadUniqueConstraint.map(fld => s"payload.${fld}" -> IndexType.Ascending)

@@ -6,9 +6,9 @@ import play.api.libs.json.OFormat
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.byId
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.engine.RegisteredWorkloads
-import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.registry.RegisteredWorkload
+import twita.whipsaw.api.registry.RegisteredWorkloads
+import twita.whipsaw.api.registry.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.SchedulingStatus

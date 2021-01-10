@@ -1,6 +1,8 @@
 package twita.whipsaw.api.engine
 
 import akka.stream.Materializer
+import twita.whipsaw.api.registry.RegisteredWorkloads
+import twita.whipsaw.api.registry.WorkloadRegistry
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkloadId
@@ -9,18 +11,14 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 /**
-  * The Director sits on top of the whole workload hierarchy and it is this object's job to wake up from time to
-  * time to see if there are Workloads that need to be activated.
+  * The Director sits on top of the whole workload hierarchy and knows how to start up Workloads that are due to be
+  * started.
   */
 trait Director {
   implicit def executionContext: ExecutionContext
 
   /**
-    * @return a repository of all of the workloads that currently exist in the system.  Note that a {{RegisteredWorkload}}
-    *         is not the same thing as a normnal {{Workload}} object, in that it does not carry along the generic
-    *         information that {{Workload}}s have.  The {{Director}} doesn't actually care about the specific work that
-    *         a {{Workload}} has been created to do.  It just needs to be able to figure out that a {{Workload}} is
-    *         due for processing and that a {{Manager}} needs to be created to take care of doing that work.
+    * @return a repository of all of the workloads that currently exist in the system.
     */
   def registeredWorkloads: RegisteredWorkloads
 
@@ -46,13 +44,15 @@ trait Director {
     *          of actually processing the Workload.
     * @return List or workloads that were actually run.
     */
-  def delegateRunnableWorkloads()(implicit m: Materializer): Future[Seq[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
+  def delegateRunnableWorkloads()(implicit m: Materializer): Future[List[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable
       runnables <- Future.traverse(listToRun) { rw => registry(rw)}
       managerSeq <- Future.traverse(runnables) { runnable => managers.forWorkload(runnable) }
-      processed <- Future.traverse(managerSeq) { manager => manager.executeWorkload().map(manager.workload.id -> _) }
+      processed <- Future.traverse(managerSeq) { manager =>
+        managers.activate(manager).map(o => o.workload.id -> (o.workload.schedulingStatus, o.workload.processingStatus))
+      }
     } yield processed
   }
 }

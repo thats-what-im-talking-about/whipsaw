@@ -1,30 +1,34 @@
 package twita.whipsaw
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.engine.WorkloadRegistry
-import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.registry.RegisteredWorkload
+import twita.whipsaw.api.registry.WorkloadRegistry
+import twita.whipsaw.api.registry.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Processor
 import twita.whipsaw.api.workloads.Scheduler
 import twita.whipsaw.api.workloads.Workload
+import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
 import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.Random
 
 object TestApp {
   implicit val testAppActorSystem = ActorSystem("TestApp")
   implicit val materializer = Materializer(testAppActorSystem)
-  implicit val mongoContext = new DevMongoContextImpl
+  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   implicit val executionContext = testAppActorSystem.dispatcher
 
   case class SamplePayload(
@@ -57,15 +61,19 @@ object TestApp {
 
   // create a processor
   class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
-    override def process(payload: SamplePayload): Future[(ItemResult, SamplePayload)] = Future {
-      Thread.sleep(100)
+    override def process(payload: SamplePayload)(implicit executionContext: ExecutionContext): Future[(ItemResult, SamplePayload)] = Future {
+      //Thread.sleep(100)
 
       if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)
       else
-        (ItemResult.Done, payload.copy(
-          target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
-          , touchedCount = payload.touchedCount + 1
-        ))
+        payload.touchedCount match {
+          case 0 => (ItemResult.Reschedule(Instant.now.plusMillis(60000)), payload.copy(touchedCount = payload.touchedCount + 1))
+          case _ =>
+            (ItemResult.Done, payload.copy(
+                target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
+              , touchedCount = payload.touchedCount + 1
+            ))
+        }
     }
   }
 

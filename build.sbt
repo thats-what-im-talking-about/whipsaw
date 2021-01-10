@@ -17,7 +17,15 @@ libraryDependencies ++= Seq(
     "org.scalactic" %% "scalactic" % "3.2.0"
   , "org.scalatest" %% "scalatest" % "3.2.0" % "test"
   , "org.slf4j" % "log4j-over-slf4j" % "1.7.30" % "test"
+  //, "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
+  //, "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
+  //, "com.typesafe.akka" %% "akka-serialization-jackson" % akkaVersion
 )
+
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
+dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-serialization-jackson" % akkaVersion
+
 
 lazy val api = project in file("api")
 
@@ -29,6 +37,14 @@ lazy val `engine-local-functions` = (project in file("libs/engines/local-functio
 
 lazy val `play-app` = (project in file("play-app"))
   .enablePlugins(PlayScala)
+  .dependsOn( api
+    , `workload-reactive-mongo-impl`
+    , `engine-local-functions`
+  )
+  .aggregate( api
+    , `workload-reactive-mongo-impl`
+    , `engine-local-functions`
+  )
 
 lazy val root = (project in file("."))
   .dependsOn( api

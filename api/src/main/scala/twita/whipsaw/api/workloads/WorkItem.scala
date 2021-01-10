@@ -19,6 +19,7 @@ import twita.dominion.api.DomainObjectGroup
 import twita.dominion.api.DomainObjectGroup.Query
 import twita.dominion.api.EmptyEventFmt
 import twita.whipsaw.api.workloads.ItemResult.Done
+import twita.whipsaw.api.workloads.ItemResult.Reschedule
 import twita.whipsaw.api.workloads.ItemResult.Retry
 
 import scala.concurrent.ExecutionContext
@@ -77,6 +78,7 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
     (itemResult, updatedPayload) <- workload.processor.process(payload)
     result <- itemResult match {
       case Done => this(FinishedProcessing(updatedPayload, itemResult))
+      case Reschedule(at) => this(Rescheduled(at, updatedPayload))
       case Retry(t) => workload.metadata.retryPolicy.retry(this)
     }
   } yield itemResult
@@ -92,6 +94,9 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   case class RetryScheduled(at: Instant, tryNumber: Int) extends Event
   object RetryScheduled { implicit val fmt = Json.format[RetryScheduled] }
 
+  case class Rescheduled(newRunAt: Instant, newPayload: Payload, at: Instant = Instant.now) extends Event
+  object Rescheduled { implicit val fmt = Json.format[Rescheduled] }
+
   case class MaxRetriesReached() extends Event
   object MaxRetriesReached { implicit val fmt = EmptyEventFmt(MaxRetriesReached()) }
 }
@@ -105,10 +110,14 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
     */
   def runnableItemSource(runAt: Instant, batchSize: Int)(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
 
+  def nextRunAt: Future[Option[Instant]]
+
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class WorkItemAdded(payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
   object WorkItemAdded { implicit val fmt = Json.format[WorkItemAdded] }
+
+  case object NextRunAt extends Query
 }
 
 object WorkItems {
