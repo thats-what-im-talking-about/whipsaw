@@ -4,7 +4,6 @@ import akka.actor.Actor
 import akka.actor.ActorSystem
 import org.scalatest.flatspec._
 import org.scalatest.matchers._
-import twita.dominion.api.DomainObjectGroup.byId
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
 import twita.whipsaw.api.workloads.WorkloadContext
@@ -36,22 +35,12 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
     }
   }
 
-  "stats" should "be retrievable from the directory by workloadId" in {
-    for {
-      rw <- director.registeredWorkloads.get(byId(workloadId))
-    } yield {
-      assert(rw.map(_.stats).isDefined)
-    }
-  }
-
   "director" should "be able to execute a runnable worklaod" in {
-      for {
-        rwOpt <- director.registeredWorkloads.get(byId(workloadId))
-        _ = rwOpt.map(rw => println(s"Stats from LocalEngineSpec: ${rw.stats}"))
-        result <- director.delegateRunnableWorkloads()
-      } yield {
-        assert(result.size == 1)
-      }
+    for {
+      result <- director.delegateRunnableWorkloads()
+    } yield {
+      assert(result.size == 1)
+    }
   }
 }
 

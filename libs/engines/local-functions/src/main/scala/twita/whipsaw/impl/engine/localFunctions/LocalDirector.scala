@@ -3,8 +3,8 @@ package twita.whipsaw.impl.engine.localFunctions
 import akka.actor.ActorSystem
 import twita.whipsaw.api.engine.Director
 import twita.whipsaw.api.engine.Managers
-import twita.whipsaw.api.engine.RegisteredWorkloads
-import twita.whipsaw.api.engine.WorkloadRegistry
+import twita.whipsaw.api.registry.RegisteredWorkloads
+import twita.whipsaw.api.registry.WorkloadRegistry
 
 import scala.concurrent.ExecutionContext
 

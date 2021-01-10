@@ -6,7 +6,7 @@ import akka.actor.Cancellable
 import akka.pattern.pipe
 import twita.whipsaw.api.engine.Director
 import twita.whipsaw.api.engine.Manager
-import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.api.registry.RegisteredWorkload
 import twita.whipsaw.monitor.WorkloadStatsTracker.AddProbe
 
 import scala.concurrent.duration._

@@ -5,10 +5,10 @@ import enumeratum._
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.MongoContext
 import twita.whipsaw.api.engine.Director
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.engine.RegisteredWorkloads
-import twita.whipsaw.api.engine.WorkloadRegistry
-import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.registry.RegisteredWorkload
+import twita.whipsaw.api.registry.RegisteredWorkloads
+import twita.whipsaw.api.registry.WorkloadRegistry
+import twita.whipsaw.api.registry.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadContext

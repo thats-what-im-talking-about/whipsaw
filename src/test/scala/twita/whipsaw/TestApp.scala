@@ -8,9 +8,9 @@ import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.engine.WorkloadRegistry
-import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.registry.RegisteredWorkload
+import twita.whipsaw.api.registry.WorkloadRegistry
+import twita.whipsaw.api.registry.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.ItemResult
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Processor

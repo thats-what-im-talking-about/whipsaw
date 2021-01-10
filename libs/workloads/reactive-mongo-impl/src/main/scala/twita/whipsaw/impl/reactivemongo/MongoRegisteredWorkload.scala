@@ -15,12 +15,11 @@ import twita.dominion.impl.reactivemongo.MongoContext
 import twita.dominion.impl.reactivemongo.ObjectDescriptor
 import twita.dominion.impl.reactivemongo.ReactiveMongoDomainObjectGroup
 import twita.dominion.impl.reactivemongo.ReactiveMongoObject
-import twita.whipsaw.api.engine.RegisteredWorkload
-import twita.whipsaw.api.engine.RegisteredWorkloads
-import twita.whipsaw.api.engine.WorkloadRegistryEntry
+import twita.whipsaw.api.registry.RegisteredWorkload
+import twita.whipsaw.api.registry.RegisteredWorkloads
+import twita.whipsaw.api.registry.WorkloadRegistryEntry
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.Metadata
-import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadFactory
@@ -93,11 +92,6 @@ extends ReactiveMongoDomainObjectGroup[EventId, RegisteredWorkload, RegisteredWo
   with RegisteredWorkloads
 {
   override protected def listConstraint: JsObject = Json.obj()
-
-  override def get(q: DomainObjectGroup.Query): Future[Option[RegisteredWorkload]] = {
-    println(s"about to get workload ${q}")
-    super.get(q).map { r => println(s"got workload ${r}"); r}
-  }
 
   override def list(q: DomainObjectGroup.Query): Future[List[RegisteredWorkload]] = ???
 

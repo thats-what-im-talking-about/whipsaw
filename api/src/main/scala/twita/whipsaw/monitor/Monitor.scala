@@ -9,7 +9,7 @@ import akka.pattern.pipe
 import play.api.libs.json.Json
 import twita.dominion.api.DomainObjectGroup.byId
 import twita.whipsaw.api.engine.Director
-import twita.whipsaw.api.engine.RegisteredWorkload
+import twita.whipsaw.api.registry.RegisteredWorkload
 import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.duration._
