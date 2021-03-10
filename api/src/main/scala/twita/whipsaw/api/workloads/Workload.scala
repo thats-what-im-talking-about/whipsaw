@@ -29,7 +29,7 @@ object WorkloadId {
   implicit val fmt = new Format[WorkloadId] {
     override def reads(json: JsValue): JsResult[WorkloadId] = json match {
       case JsString(id) => JsSuccess(WorkloadId(id))
-      case err => JsError(s"Expected a String but got ${err}")
+      case err          => JsError(s"Expected a String but got ${err}")
     }
 
     override def writes(o: WorkloadId): JsValue = JsString(o.value)
@@ -37,7 +37,9 @@ object WorkloadId {
 }
 
 sealed trait SchedulingStatus extends EnumEntry
-object SchedulingStatus extends Enum[SchedulingStatus] with PlayJsonEnum[SchedulingStatus] {
+object SchedulingStatus
+    extends Enum[SchedulingStatus]
+    with PlayJsonEnum[SchedulingStatus] {
   val values = findValues
 
   case object Init extends SchedulingStatus
@@ -46,7 +48,9 @@ object SchedulingStatus extends Enum[SchedulingStatus] with PlayJsonEnum[Schedul
 }
 
 sealed trait ProcessingStatus extends EnumEntry
-object ProcessingStatus extends Enum[ProcessingStatus] with PlayJsonEnum[ProcessingStatus] {
+object ProcessingStatus
+    extends Enum[ProcessingStatus]
+    with PlayJsonEnum[ProcessingStatus] {
   val values = findValues
 
   case object Init extends ProcessingStatus
@@ -84,8 +88,7 @@ trait WorkloadContext
   *                 processing of the Workload may pick up where it left off if for some reason it's interrupted.
   */
 trait Workload[Payload, SParams, PParams]
-extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
-{
+    extends DomainObject[EventId, Workload[Payload, SParams, PParams]] {
   override type AllowedEvent = Event
   override type ObjectId = WorkloadId
 
@@ -109,37 +112,55 @@ extends DomainObject[EventId, Workload[Payload, SParams, PParams]]
   // [error]  required: qual$1.AllowedEvent
   private lazy val workItemFactory = workItems
 
-  def schedule(statsTracker: ActorRef)(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
+  def schedule(
+    statsTracker: ActorRef
+  )(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
     for {
       payloadIterator <- scheduler.schedule()
-      source = Source.fromIterator(() => payloadIterator).mapAsyncUnordered(10) { payload =>
-        statsTracker ! WorkloadStatistics(scheduled = 1)
-        workItemFactory(workItemFactory.WorkItemAdded(payload)).map(Option(_))
-          .recoverWith { case t: Throwable => scheduler.handleDuplicate(payload).map(_ => None) }
-      }
+      source = Source
+        .fromIterator(() => payloadIterator)
+        .mapAsyncUnordered(10) { payload =>
+          statsTracker ! WorkloadStatistics(scheduled = 1)
+          // TODO: duplicates need to be handled more specifically that Throwable during scheduling.
+          workItemFactory(workItemFactory.WorkItemAdded(payload))
+            .map(Option(_))
+            .recoverWith {
+              case t: Throwable =>
+                scheduler.handleDuplicate(payload).map(_ => None)
+            }
+        }
       result <- source.run().map(_ => SchedulingStatus.Completed)
     } yield result
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class ScheduleStatusUpdated(schedulingStatus: SchedulingStatus) extends Event
-  object ScheduleStatusUpdated { implicit val fmt = Json.format[ScheduleStatusUpdated] }
+  case class ScheduleStatusUpdated(schedulingStatus: SchedulingStatus)
+      extends Event
+  object ScheduleStatusUpdated {
+    implicit val fmt = Json.format[ScheduleStatusUpdated]
+  }
 
-  case class ProcessingStatusUpdated(processingStatus: ProcessingStatus) extends Event
-  object ProcessingStatusUpdated { implicit val fmt = Json.format[ProcessingStatusUpdated] }
+  case class ProcessingStatusUpdated(processingStatus: ProcessingStatus)
+      extends Event
+  object ProcessingStatusUpdated {
+    implicit val fmt = Json.format[ProcessingStatusUpdated]
+  }
 
   case class StatsUpdated(stats: WorkloadStatistics) extends Event
   object StatsUpdated { implicit val fmt = Json.format[StatsUpdated] }
 }
 
 trait WorkloadFactory[Payload, SParams, PParams]
-extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
+    extends DomainObjectGroup[EventId, Workload[Payload, SParams, PParams]] {
   implicit def spFmt: OFormat[SParams]
   implicit def ppFmt: OFormat[PParams]
   override type AllowedEvent = Event
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class Created(name: String, schedulerParams: SParams, processorParams: PParams) extends Event
+  case class Created(name: String,
+                     schedulerParams: SParams,
+                     processorParams: PParams)
+      extends Event
   object Created { implicit val fmt = Json.format[Created] }
 }
