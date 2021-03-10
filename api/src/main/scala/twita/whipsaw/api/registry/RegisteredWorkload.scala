@@ -5,6 +5,8 @@ import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.EventIdGenerator
+import twita.whipsaw.api.workloads.ProcessingStatus
+import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.monitor.WorkloadStatistics
 
@@ -21,6 +23,8 @@ trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
 
   def factoryType: String
   def stats: WorkloadStatistics
+  def schedulingStatus: SchedulingStatus
+  def processingStatus: ProcessingStatus
   def refresh(): Future[RegisteredWorkload]
 }
 
@@ -28,7 +32,8 @@ object RegisteredWorkload {
   sealed class Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait RegisteredWorkloads extends DomainObjectGroup[EventId, RegisteredWorkload] {
+trait RegisteredWorkloads
+    extends DomainObjectGroup[EventId, RegisteredWorkload] {
   override type AllowedEvent = RegisteredWorkloads.Event
 
   def getRunnable: Future[List[RegisteredWorkload]]

@@ -6,6 +6,8 @@ import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
+import twita.whipsaw.api.workloads.ProcessingStatus
+import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.impl.engine.localFunctions.LocalDirector
@@ -16,17 +18,21 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   implicit val actorSystem = ActorSystem("LocalEngineSpec")
 
-  val director = new LocalDirector(TestApp.SampleRegistryEntry, new MongoRegisteredWorkloads())
-  val workloadFactory = director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
+  val director = new LocalDirector(
+    TestApp.SampleRegistryEntry,
+    new MongoRegisteredWorkloads()
+  )
+  val workloadFactory =
+    director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
   var workloadId: WorkloadId = _
 
   "workloads" should "be created" in {
     for {
       createdWorkload <- workloadFactory(
         workloadFactory.Created(
-            name = "Sample Workload"
-          , schedulerParams = TestApp.SampleSchedulerParams(10)
-          , processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
+          name = "Sample Workload",
+          schedulerParams = TestApp.SampleSchedulerParams(1000),
+          processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
         )
       )
     } yield {
@@ -39,7 +45,14 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
     for {
       result <- director.delegateRunnableWorkloads()
     } yield {
-      assert(result.size == 1)
+      result
+        .find { case (wlId, _) => wlId == workloadId }
+        .map {
+          case (_, (schedStatus, procStatus)) =>
+            assert(schedStatus != SchedulingStatus.Init)
+            assert(procStatus != ProcessingStatus.Init)
+        }
+        .getOrElse(assert(false))
     }
   }
 }
