@@ -1,11 +1,9 @@
 package twita.whipsaw.api.engine
 
 import akka.stream.Materializer
+import twita.whipsaw.api.registry.RegisteredWorkload
 import twita.whipsaw.api.registry.RegisteredWorkloads
 import twita.whipsaw.api.registry.WorkloadRegistry
-import twita.whipsaw.api.workloads.ProcessingStatus
-import twita.whipsaw.api.workloads.SchedulingStatus
-import twita.whipsaw.api.workloads.WorkloadId
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -42,11 +40,11 @@ trait Director {
     *
     * @param m Akka Streams materializer instance that will be needed further down in the call stack to do the work
     *          of actually processing the Workload.
-    * @return List or workloads that were actually run.
+    * @return List of workloads that were actually run.
     */
   def delegateRunnableWorkloads()(
     implicit m: Materializer
-  ): Future[List[(WorkloadId, (SchedulingStatus, ProcessingStatus))]] = {
+  ): Future[List[RegisteredWorkload]] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable
@@ -62,7 +60,6 @@ trait Director {
           .flatMap(
             mgr => listToRun.find(_.id == mgr.workload.id).map(_.refresh()).get
           )
-          .map(rw => rw.id -> (rw.schedulingStatus, rw.processingStatus))
       }
     } yield processed
   }

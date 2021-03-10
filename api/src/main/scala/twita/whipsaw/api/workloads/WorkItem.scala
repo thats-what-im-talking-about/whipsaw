@@ -1,5 +1,7 @@
 package twita.whipsaw.api.workloads
 
+import enumeratum._
+
 import java.time.Instant
 import java.util.UUID
 
@@ -31,11 +33,25 @@ object WorkItemId {
   implicit val fmt = new Format[WorkItemId] {
     override def reads(json: JsValue): JsResult[WorkItemId] = json match {
       case JsString(id) => JsSuccess(WorkItemId(id))
-      case err => JsError(s"Expected a String but got ${err}")
+      case err          => JsError(s"Expected a String but got ${err}")
     }
 
     override def writes(o: WorkItemId): JsValue = JsString(o.value)
   }
+}
+
+sealed trait WorkItemStatus extends EnumEntry
+
+object WorkItemStatus
+    extends Enum[WorkItemStatus]
+    with PlayJsonEnum[WorkItemStatus] {
+  val values = findValues
+
+  case object Scheduled extends WorkItemStatus
+  case object Running extends WorkItemStatus
+  case object ScheduledForRetry extends WorkItemStatus
+  case object Completed extends WorkItemStatus
+  case object Error extends WorkItemStatus
 }
 
 /**
@@ -73,32 +89,43 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
 
   protected def workload: Workload[Payload, _, _]
 
-  def process()(implicit ec: ExecutionContext): Future[ItemResult] = for {
-    started <- this(StartedProcessing())
-    (itemResult, updatedPayload) <- workload.processor.process(payload)
-    result <- itemResult match {
-      case Done => this(FinishedProcessing(updatedPayload, itemResult))
-      case Reschedule(at) => this(Rescheduled(at, updatedPayload))
-      case Retry(t) => workload.metadata.retryPolicy.retry(this)
-    }
-  } yield itemResult
+  def process()(implicit ec: ExecutionContext): Future[ItemResult] =
+    for {
+      started <- this(StartedProcessing())
+      (itemResult, updatedPayload) <- workload.processor.process(payload)
+      result <- itemResult match {
+        case Done           => this(FinishedProcessing(updatedPayload, itemResult))
+        case Reschedule(at) => this(Rescheduled(at, updatedPayload))
+        case Retry(t)       => workload.metadata.retryPolicy.retry(this)
+      }
+    } yield itemResult
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class StartedProcessing(at: Instant = Instant.now) extends Event
   object StartedProcessing { implicit val fmt = Json.format[StartedProcessing] }
 
-  case class FinishedProcessing(newPayload: Payload, result: ItemResult, at: Instant = Instant.now) extends Event
-  object FinishedProcessing { implicit val fmt = Json.format[FinishedProcessing] }
+  case class FinishedProcessing(newPayload: Payload,
+                                result: ItemResult,
+                                at: Instant = Instant.now)
+      extends Event
+  object FinishedProcessing {
+    implicit val fmt = Json.format[FinishedProcessing]
+  }
 
   case class RetryScheduled(at: Instant, tryNumber: Int) extends Event
   object RetryScheduled { implicit val fmt = Json.format[RetryScheduled] }
 
-  case class Rescheduled(newRunAt: Instant, newPayload: Payload, at: Instant = Instant.now) extends Event
+  case class Rescheduled(newRunAt: Instant,
+                         newPayload: Payload,
+                         at: Instant = Instant.now)
+      extends Event
   object Rescheduled { implicit val fmt = Json.format[Rescheduled] }
 
   case class MaxRetriesReached() extends Event
-  object MaxRetriesReached { implicit val fmt = EmptyEventFmt(MaxRetriesReached()) }
+  object MaxRetriesReached {
+    implicit val fmt = EmptyEventFmt(MaxRetriesReached())
+  }
 }
 
 trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
@@ -108,13 +135,17 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
   /**
     * @return Eventually returns a list of items whose runAt is in the past.
     */
-  def runnableItemSource(runAt: Instant, batchSize: Int)(implicit m: Materializer): Future[Source[WorkItem[Payload], Any]]
+  def runnableItemSource(runAt: Instant, batchSize: Int)(
+    implicit m: Materializer
+  ): Future[Source[WorkItem[Payload], Any]]
 
   def nextRunAt: Future[Option[Instant]]
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
-  case class WorkItemAdded(payload: Payload, runAt: Option[Instant] = Some(Instant.now())) extends Event
+  case class WorkItemAdded(payload: Payload,
+                           runAt: Option[Instant] = Some(Instant.now()))
+      extends Event
   object WorkItemAdded { implicit val fmt = Json.format[WorkItemAdded] }
 
   case object NextRunAt extends Query

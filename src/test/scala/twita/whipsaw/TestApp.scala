@@ -31,24 +31,27 @@ object TestApp {
   implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   implicit val executionContext = testAppActorSystem.dispatcher
 
-  case class SamplePayload(
-      email: String
-    , target: String
-    , touchedCount: Int = 0
-  )
+  case class SamplePayload(email: String, target: String, touchedCount: Int = 0)
   object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
 
   // create a holder for the arguments that are going to the scheduler
   case class SampleSchedulerParams(numItems: Int)
-  object SampleSchedulerParams { implicit val fmt = Json.format[SampleSchedulerParams] }
+  object SampleSchedulerParams {
+    implicit val fmt = Json.format[SampleSchedulerParams]
+  }
 
   // created an alternative just to convince myself that the compiler would be unhappy.
   case class WrongSampleSchedulerParams(numItems: Int)
-  object WrongSampleSchedulerParams { implicit val fmt = Json.format[WrongSampleSchedulerParams] }
+  object WrongSampleSchedulerParams {
+    implicit val fmt = Json.format[WrongSampleSchedulerParams]
+  }
 
   // create a scheduler
-  class SampleWorkloadScheduler(p: SampleSchedulerParams) extends Scheduler[SamplePayload] {
-    override def schedule()(implicit ec: ExecutionContext): Future[Iterator[SamplePayload]] = Future {
+  class SampleWorkloadScheduler(p: SampleSchedulerParams)
+      extends Scheduler[SamplePayload] {
+    override def schedule()(
+      implicit ec: ExecutionContext
+    ): Future[Iterator[SamplePayload]] = Future {
       Range(0, p.numItems).iterator.map { index =>
         SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
       }
@@ -57,47 +60,71 @@ object TestApp {
 
   // create a holder for processor parameters
   case class SampleProcessorParams(msgToAppend: String)
-  object SampleProcessorParams { implicit val fmt = Json.format[SampleProcessorParams] }
+  object SampleProcessorParams {
+    implicit val fmt = Json.format[SampleProcessorParams]
+  }
 
   // create a processor
-  class SampleWorkItemProcessor(p: SampleProcessorParams) extends Processor[SamplePayload] {
-    override def process(payload: SamplePayload)(implicit executionContext: ExecutionContext): Future[(ItemResult, SamplePayload)] = Future {
+  class SampleProcessorWithDelay(p: SampleProcessorParams)
+      extends Processor[SamplePayload] {
+    override def process(payload: SamplePayload)(
+      implicit executionContext: ExecutionContext
+    ): Future[(ItemResult, SamplePayload)] = Future {
       //Thread.sleep(100)
 
-      if(Random.nextInt(100) < 20) (ItemResult.Retry(new RuntimeException()), payload)
+      if (Random.nextInt(100) < 20)
+        (ItemResult.Retry(new RuntimeException()), payload)
       else
         payload.touchedCount match {
-          case 0 => (ItemResult.Reschedule(Instant.now.plusMillis(60000)), payload.copy(touchedCount = payload.touchedCount + 1))
+          case 0 =>
+            (
+              ItemResult.Reschedule(Instant.now.plusMillis(15000)),
+              payload.copy(touchedCount = payload.touchedCount + 1)
+            )
           case _ =>
-            (ItemResult.Done, payload.copy(
-                target = List(payload.target, p.msgToAppend).mkString(":").toUpperCase()
-              , touchedCount = payload.touchedCount + 1
-            ))
+            (
+              ItemResult.Done,
+              payload.copy(
+                target = List(payload.target, p.msgToAppend)
+                  .mkString(":")
+                  .toUpperCase(),
+                touchedCount = payload.touchedCount + 1
+              )
+            )
         }
     }
   }
 
   sealed trait SampleRegistryEntry extends WorkloadRegistryEntry with EnumEntry
 
-  object SampleRegistryEntry extends Enum[SampleRegistryEntry] with WorkloadRegistry {
+  object SampleRegistryEntry
+      extends Enum[SampleRegistryEntry]
+      with WorkloadRegistry {
     val values = findValues
 
-    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] = {
+    override def apply(rw: RegisteredWorkload)(
+      implicit executionContext: ExecutionContext
+    ): Future[Workload[_, _, _]] = {
       SampleRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
     }
 
-    override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](md: Metadata[Payload, SParams, PParams])(
+    override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+      md: Metadata[Payload, SParams, PParams]
+    )(
       implicit executionContext: ExecutionContext
-    ): WorkloadFactory[Payload, SParams, PParams] = values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
+    ): WorkloadFactory[Payload, SParams, PParams] =
+      values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
 
-    case object Sample extends MongoWorkloadRegistryEntry with SampleRegistryEntry {
+    case object Sample
+        extends MongoWorkloadRegistryEntry
+        with SampleRegistryEntry {
       lazy val metadata = Metadata(
-          new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams)
-        , new TestApp.SampleWorkItemProcessor(_: TestApp.SampleProcessorParams)
-        , Seq("email")
-        , entryName
+        new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams),
+        new TestApp.SampleProcessorWithDelay(_: TestApp.SampleProcessorParams),
+        Seq("email"),
+        entryName
       )
-      lazy val factory: WorkloadFactory[_,_,_] = factoryForMetadata(metadata)
+      lazy val factory: WorkloadFactory[_, _, _] = factoryForMetadata(metadata)
     }
   }
 }
