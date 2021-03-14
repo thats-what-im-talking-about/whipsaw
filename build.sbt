@@ -43,12 +43,10 @@ lazy val `workload-in-memory-impl` =
 lazy val `engine-local-functions` =
   (project in file("libs/engines/local-functions")).dependsOn(api)
 
-/*
 lazy val `play-app` = (project in file("play-app"))
   .enablePlugins(PlayScala)
   .dependsOn(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
   .aggregate(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
-*/
 
 lazy val root = (project in file("."))
   .dependsOn(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
@@ -56,5 +54,5 @@ lazy val root = (project in file("."))
     api,
     `workload-reactive-mongo-impl`,
     `engine-local-functions`,
-    //`play-app`
+    `play-app`
   )
