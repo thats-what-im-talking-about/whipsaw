@@ -91,14 +91,17 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
 
   def process()(implicit ec: ExecutionContext): Future[ItemResult] =
     for {
-      started <- this(StartedProcessing())
-      (itemResult, updatedPayload) <- workload.processor.process(payload)
-      result <- itemResult match {
-        case Done           => this(FinishedProcessing(updatedPayload, itemResult))
-        case Reschedule(at) => this(Rescheduled(at, updatedPayload))
-        case Retry(t)       => workload.metadata.retryPolicy.retry(this)
+      _ <- this(StartedProcessing())
+      (processingResult, updatedPayload) <- workload.processor.process(payload)
+      (finalResult, _) <- processingResult match {
+        case Done =>
+          this(FinishedProcessing(updatedPayload, processingResult))
+            .map(processingResult -> _)
+        case Reschedule(at) =>
+          this(Rescheduled(at, updatedPayload)).map(processingResult -> _)
+        case r: Retry => workload.metadata.retryPolicy.retry(r, this)
       }
-    } yield itemResult
+    } yield finalResult
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
