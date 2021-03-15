@@ -74,9 +74,9 @@ trait Manager {
         Future.successful(SchedulingStatus.Completed)
       case _ =>
         for {
-          running <- wl(wl.ScheduleStatusUpdated(SchedulingStatus.Running))
+          _ <- wl(wl.ScheduleStatusUpdated(SchedulingStatus.Running))
           result <- wl.schedule(statsTracker)
-          updated <- wl(wl.ScheduleStatusUpdated(result))
+          _ <- wl(wl.ScheduleStatusUpdated(result))
         } yield result
     }
 
@@ -93,37 +93,22 @@ trait Manager {
             )
             result <- runnableItems
               .mapAsyncUnordered(workload.desiredNumWorkers)(
-                workers.forItem(_).flatMap { item =>
-                  item.workItem.retryCount match {
+                workers.forItem(_).flatMap { worker =>
+                  worker.workItem.retryCount match {
                     case 0 =>
-                      statsTracker ! WorkloadStatistics(
-                        scheduled = -1,
-                        running = 1
-                      )
+                      statsTracker ! WorkloadStatistics.ScheduledToRunning
                     case _ =>
-                      statsTracker ! WorkloadStatistics(
-                        scheduledForRetry = -1,
-                        running = 1
-                      )
+                      statsTracker ! WorkloadStatistics.ScheduledRetryToRunning
                   }
-                  item.process().map {
+                  worker.process().map {
                     case r: ItemResult.Error =>
-                      statsTracker ! WorkloadStatistics(running = -1, error = 1)
+                      statsTracker ! WorkloadStatistics.RunningToError
                     case ItemResult.Done =>
-                      statsTracker ! WorkloadStatistics(
-                        running = -1,
-                        completed = 1
-                      )
+                      statsTracker ! WorkloadStatistics.RunningToCompleted
                     case r: ItemResult.Retry =>
-                      statsTracker ! WorkloadStatistics(
-                        running = -1,
-                        scheduledForRetry = 1
-                      )
+                      statsTracker ! WorkloadStatistics.RunningToScheduledRetry
                     case r: ItemResult.Reschedule =>
-                      statsTracker ! WorkloadStatistics(
-                        running = -1,
-                        scheduled = 1
-                      )
+                      statsTracker ! WorkloadStatistics.RunningToScheduled
                   }
                 }
               )
@@ -143,12 +128,12 @@ trait Manager {
                   statsTracker ! WorkloadStatsTracker.Deactivate(nextRunAt)
                   Future.successful(wl.processingStatus)
                 case 0 => processRunnablesFt(true)
-                case n => processRunnablesFt(false)
+                case _ => processRunnablesFt(false)
               }
           }
       }
 
-    lazy val processResult = processRunnablesFt(false)
+    val processResult = processRunnablesFt(false)
 
     statsTracker ! wl.stats
 
