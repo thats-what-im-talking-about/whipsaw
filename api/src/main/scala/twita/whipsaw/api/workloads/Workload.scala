@@ -86,6 +86,10 @@ trait WorkloadContext
   * @tparam Payload The type that contains a complete description of everything that an individual WorkItem needs
   *                 in order to be processed by the Workload.  This will be persisted with the Workload so that the
   *                 processing of the Workload may pick up where it left off if for some reason it's interrupted.
+  * @tparam SParams The type that contains all of the parameters that Workload Management will use to configure an
+  *                  instance of this Workload's Scheduler.
+  * @tparam PParams The type that contains all of the parameters that Workload Management will use to configure an
+  *                  instance of this Workload's Processor.
   */
 trait Workload[Payload, SParams, PParams]
     extends DomainObject[EventId, Workload[Payload, SParams, PParams]] {
