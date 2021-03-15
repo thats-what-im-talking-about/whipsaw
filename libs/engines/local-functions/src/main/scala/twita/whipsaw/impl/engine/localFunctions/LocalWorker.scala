@@ -7,11 +7,10 @@ import twita.whipsaw.api.workloads.WorkItem
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-class LocalWorker(override val workItem: WorkItem[_])(
-  implicit val executionContext: ExecutionContext
-) extends Worker {
-}
+class LocalWorker(override val workItem: WorkItem[_]) extends Worker
 
-class LocalWorkers()(implicit executionContext: ExecutionContext) extends Workers {
-  override def forItem(item: WorkItem[_]): Future[Worker] = Future.successful(new LocalWorker(item))
+class LocalWorkers extends Workers {
+  override def forItem(item: WorkItem[_])(
+    implicit ec: ExecutionContext
+  ): Future[Worker] = Future.successful(new LocalWorker(item))
 }

@@ -21,16 +21,28 @@ import scala.concurrent.Future
   * may be only one per `Workload`) encapsulates the work that needs to be done in order to process a `Workload`.
   */
 trait Manager {
-  implicit def executionContext: ExecutionContext
-  def actorSystem: ActorSystem
 
+  /**
+    * @return Executable `Workload` instance for which this `Manager` has been instantiated.
+    */
   def workload: Workload[_, _, _]
+
+  /**
+    * @return An abstract representation of the collection of `Worker` instances created by this `Manager`.  Just as
+    *         the `Director` instantiates the `Manager`s, the `Manager` in turn instantiates the `Worker` instances that
+    *         are responsible for processing an individual `WorkItem`.
+    */
   def workers: Workers
 
   /**
-    * @return the `Director` instance which created this `Manager`
+    * @return the `Director` instance which created this `Manager`.
     */
   def director: Director
+
+  /**
+    * @return `ActorSystem` to use for the `statsTracker` Actor.
+    */
+  def actorSystem: ActorSystem
 
   /**
     * Akka Actor that is responsible for asynchronously tracking the stats for the managed Workload.
@@ -50,7 +62,8 @@ trait Manager {
     *         `Workload`.
     */
   def executeWorkload()(
-    implicit m: Materializer
+    implicit m: Materializer,
+    ec: ExecutionContext
   ): Future[(SchedulingStatus, ProcessingStatus)] = {
     director.managers.activate(this)
 
