@@ -23,7 +23,6 @@ object ItemResult extends Enum[ItemResult] with PlayJsonEnum[ItemResult] {
   * a Workload.
   * @tparam Payload The application-defined payload for the Workload that is being processed.
   */
-
 trait Processor[Payload] {
   // TODO: Document the remaining cases for ItemResult outcomes.
   /**
@@ -38,10 +37,20 @@ trait Processor[Payload] {
     *             and the workload engine will take no further action.
     *           </li>
     *           <li>
+    *             <b>Error</b> indicates an unrecoverable error occurred.  The WorkItem has been successfully
+    *             processed and marked as such, and the workload engine will take no further action.
+    *           </li>
+    *           <li>
     *             <b>Retry</b> indicates that we encountered a recoverable error.  If process() returns this result,
     *             it will delegate to {{Metadata.retryPolicy}} to figure out what to do next.
     *           </li>
+    *           <li>
+    *             <b>Reschedule</b> indicates that the result of our processing is that this item is going to go
+    *             to sleep until some future time (specified by the `runAt` member of this case class).
+    *           </li>
     *         </ul>
     */
-  def process(payload: Payload)(implicit executionContext: ExecutionContext): Future[(ItemResult, Payload)]
+  def process(payload: Payload)(
+    implicit executionContext: ExecutionContext
+  ): Future[(ItemResult, Payload)]
 }
