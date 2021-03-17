@@ -9,6 +9,7 @@ import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
 import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
+import twita.whipsaw.api.registry.RegisteredWorkloads
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.WorkloadContext
@@ -35,7 +36,8 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
         workloadFactory.Created(
           name = "Sample Workload",
           schedulerParams = TestApp.SampleSchedulerParams(1000),
-          processorParams = TestApp.SampleProcessorParams("PrOcEsSeD")
+          processorParams = TestApp.SampleProcessorParams("PrOcEsSeD"),
+          appAttrs = Seq("projectId" -> 1, "orgId" -> 4)
         )
       )
     } yield {
@@ -87,6 +89,16 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
         // There should be no more delayed work items.
         .map(rw => assert(rw.stats.scheduled == 0))
         .getOrElse(assert(false))
+    }
+  }
+
+  "registeredWorkloads" should "be able to retrieve by app-specific attributes" in {
+    for {
+      list <- director.registeredWorkloads.list(
+        RegisteredWorkloads.byAppAttrs("projectId" -> 1)
+      )
+    } yield {
+      assert(list.size > 0)
     }
   }
 }

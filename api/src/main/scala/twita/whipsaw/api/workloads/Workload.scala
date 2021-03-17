@@ -9,12 +9,15 @@ import enumeratum.PlayJsonEnum
 import enumeratum._
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
+import play.api.libs.json.JsObject
 import play.api.libs.json.JsResult
 import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
 import play.api.libs.json.JsValue
 import play.api.libs.json.Json
+import play.api.libs.json.Json.JsValueWrapper
 import play.api.libs.json.OFormat
+import play.api.libs.json.OWrites
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
@@ -164,7 +167,19 @@ trait WorkloadFactory[Payload, SParams, PParams]
 
   case class Created(name: String,
                      schedulerParams: SParams,
-                     processorParams: PParams)
+                     processorParams: PParams,
+                     // TODO: re-implement this as a generic (like Payload)
+                     appAttrs: Seq[(String, JsValueWrapper)] = Seq.empty)
       extends Event
-  object Created { implicit val fmt = Json.format[Created] }
+  object Created {
+    implicit val fmt =
+      new OWrites[Created] {
+        override def writes(o: Created): JsObject = Json.obj(
+          "name" -> o.name,
+          "schedulerParams" -> o.schedulerParams,
+          "processorParams" -> o.processorParams,
+          "appAttrs" -> Json.obj(o.appAttrs: _*)
+        )
+      }
+  }
 }

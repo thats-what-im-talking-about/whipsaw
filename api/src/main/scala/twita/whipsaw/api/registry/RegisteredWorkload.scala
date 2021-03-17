@@ -1,8 +1,11 @@
 package twita.whipsaw.api.registry
 
+import play.api.libs.json.JsObject
+import play.api.libs.json.Json.JsValueWrapper
 import twita.dominion.api.BaseEvent
 import twita.dominion.api.DomainObject
 import twita.dominion.api.DomainObjectGroup
+import twita.dominion.api.DomainObjectGroup.Query
 import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.EventIdGenerator
 import twita.whipsaw.api.workloads.ProcessingStatus
@@ -33,6 +36,7 @@ trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
   def stats: WorkloadStatistics
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
+  def appAttrs: JsObject
   def refresh(): Future[RegisteredWorkload]
 }
 
@@ -49,4 +53,7 @@ trait RegisteredWorkloads
 
 object RegisteredWorkloads {
   sealed class Event extends BaseEvent[EventId] with EventIdGenerator
+
+  // TODO: AppAttrs should be re-implemented as a generic to prevent this type-less stuff below.
+  case class byAppAttrs(kvs: (String, JsValueWrapper)*) extends Query
 }

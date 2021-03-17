@@ -31,6 +31,10 @@ object TestApp {
   implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
   implicit val executionContext = testAppActorSystem.dispatcher
 
+  case class TestAppAttrs(projectId: Option[Long] = None,
+                          orgId: Option[Long] = None)
+  object TestAppAttrs { implicit val fmt = Json.format[TestAppAttrs] }
+
   case class SamplePayload(email: String, target: String, touchedCount: Int = 0)
   object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
 

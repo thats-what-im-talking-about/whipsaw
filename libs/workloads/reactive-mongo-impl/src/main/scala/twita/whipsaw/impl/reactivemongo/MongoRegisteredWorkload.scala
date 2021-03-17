@@ -58,7 +58,8 @@ case class RegisteredWorkloadDoc(
   factoryType: String,
   schedulingStatus: SchedulingStatus = SchedulingStatus.Init,
   processingStatus: ProcessingStatus = ProcessingStatus.Init,
-  stats: WorkloadStatistics = WorkloadStatistics()
+  stats: WorkloadStatistics = WorkloadStatistics(),
+  appAttrs: JsObject,
 ) extends BaseDoc[WorkloadId]
 
 object RegisteredWorkloadDoc {
@@ -92,6 +93,7 @@ class MongoRegisteredWorkload(
   override def schedulingStatus: SchedulingStatus = obj.schedulingStatus
   override def processingStatus: ProcessingStatus = obj.processingStatus
   override def factoryType: String = obj.factoryType
+  override def appAttrs: JsObject = obj.appAttrs
   override def apply(
     event: RegisteredWorkload.Event,
     parent: Option[BaseEvent[EventId]]
@@ -118,7 +120,12 @@ class MongoRegisteredWorkloads()(implicit executionContext: ExecutionContext,
 
   override def list(
     q: DomainObjectGroup.Query
-  ): Future[List[RegisteredWorkload]] = ???
+  ): Future[List[RegisteredWorkload]] = q match {
+    case attrs: RegisteredWorkloads.byAppAttrs =>
+      getListByJsonCrit(Json.obj(attrs.kvs.map {
+        case (k, v) => s"appAttrs.${k}" -> v
+      }: _*))
+  }
 
   override def getRunnable: Future[List[RegisteredWorkload]] =
     getListByJsonCrit(Json.obj("stats.runAt" -> Json.obj("$lt" -> Instant.now)))

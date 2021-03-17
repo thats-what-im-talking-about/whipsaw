@@ -35,6 +35,7 @@ case class WorkloadDoc[SParams: OFormat, PParams: OFormat](
   factoryType: String,
   schedulerParams: SParams,
   processorParams: PParams,
+  appAttrs: JsObject,
   schedulingStatus: SchedulingStatus = SchedulingStatus.Init,
   processingStatus: ProcessingStatus = ProcessingStatus.Init,
   stats: WorkloadStatistics = WorkloadStatistics()
@@ -148,6 +149,7 @@ class MongoWorkloadFactory[Payload: OFormat, SParams: OFormat, PParams: OFormat]
           _id = WorkloadId(),
           name = evt.name,
           factoryType = metadata.factoryType,
+          appAttrs = Json.obj(evt.appAttrs: _*),
           schedulerParams = evt.schedulerParams,
           processorParams = evt.processorParams
         ),
