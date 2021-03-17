@@ -12,7 +12,7 @@ import scala.concurrent.Future
   * Instance that is able to produce either a `Workload` instance or a `WorkloadFactory` instance for creating
   * a new `Workload`.
   */
-trait WorkloadRegistry {
+trait WorkloadRegistry[Attr] {
 
   /**
     * Maps a `RegisteredWorkload` into a `Workload` so that it can be executed.
@@ -23,7 +23,7 @@ trait WorkloadRegistry {
     * @param executionContext
     * @return A `Future` which will be completed with a `Workload` object.
     */
-  def apply(rw: RegisteredWorkload)(
+  def apply(rw: RegisteredWorkload[Attr])(
     implicit executionContext: ExecutionContext
   ): Future[Workload[_, _, _]]
 

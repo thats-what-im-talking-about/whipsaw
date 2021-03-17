@@ -13,26 +13,37 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-class LocalManager(
-    override val director: Director
-  , override val workload: Workload[_, _, _]
-)(implicit val executionContext: ExecutionContext, val actorSystem: ActorSystem) extends Manager {
+class LocalManager[Attr](
+  override val director: Director[Attr],
+  override val workload: Workload[_, _, _]
+)(implicit val executionContext: ExecutionContext, val actorSystem: ActorSystem)
+    extends Manager[Attr] {
   override def workers: Workers = new LocalWorkers
 }
 
-class LocalManagers(val director: Director)(implicit executionContext: ExecutionContext, actorSystem: ActorSystem) extends Managers {
-  private lazy val _managers = mutable.Map.empty[WorkloadId, Manager]
+class LocalManagers[Attr](val director: Director[Attr])(
+  implicit executionContext: ExecutionContext,
+  actorSystem: ActorSystem
+) extends Managers[Attr] {
+  private lazy val _managers = mutable.Map.empty[WorkloadId, Manager[Attr]]
 
-  override def forWorkload(workload: Workload[_, _, _]): Future[Manager] =
+  override def forWorkload(workload: Workload[_, _, _]): Future[Manager[Attr]] =
     Future.successful(new LocalManager(director, workload))
 
-  override def forWorkloadId(workloadId: WorkloadId): Future[Manager] =
-    director.registeredWorkloads.get(DomainObjectGroup.byId(workloadId)).flatMap {
-      case Some(rw) => director.registry(rw).map(new LocalManager(director, _))
-      case _ => Future.failed(new IllegalStateException(s"WorkloadId not found: ${workloadId}"))
-    }
+  override def forWorkloadId(workloadId: WorkloadId): Future[Manager[Attr]] =
+    director.registeredWorkloads
+      .get(DomainObjectGroup.byId(workloadId))
+      .flatMap {
+        case Some(rw) =>
+          director.registry(rw).map(new LocalManager(director, _))
+        case _ =>
+          Future.failed(
+            new IllegalStateException(s"WorkloadId not found: ${workloadId}")
+          )
+      }
 
-  override def lookup(workloadId: WorkloadId): Option[Manager] = _managers.get(workloadId)
+  override def lookup(workloadId: WorkloadId): Option[Manager[Attr]] =
+    _managers.get(workloadId)
 
   /**
     * Adds a Manager instance to this Managers collection, and then "activates" the workload.  If there is already
@@ -40,7 +51,7 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     *
     * @param manager Manager of the workload to be activated
     */
-  override def activate(manager: Manager): Future[Manager] =
+  override def activate(manager: Manager[Attr]): Future[Manager[Attr]] =
     lookup(manager.workload.id) match {
       case Some(m) => Future.successful(m)
       case None =>
@@ -53,6 +64,6 @@ class LocalManagers(val director: Director)(implicit executionContext: Execution
     *
     * @param manager Manager of the workload to be deactivated
     */
-  override def deactivate(manager: Manager): Future[Unit] =
+  override def deactivate(manager: Manager[Attr]): Future[Unit] =
     Future.successful(_managers.remove(manager.workload.id))
 }

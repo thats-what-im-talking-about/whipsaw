@@ -23,7 +23,7 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
 
   val director = new LocalDirector(
     TestApp.SampleRegistryEntry,
-    new MongoRegisteredWorkloads()
+    new MongoRegisteredWorkloads[TestApp.AppAttributes]()
   )
   val workloadFactory =
     director.registry(TestApp.SampleRegistryEntry.Sample.metadata)

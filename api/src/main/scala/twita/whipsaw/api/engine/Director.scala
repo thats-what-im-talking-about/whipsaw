@@ -17,26 +17,26 @@ import scala.concurrent.Future
   * to time.  The Director isn't responsible for doing all of the work, but it is responsible for delegating the
   * work and monitoring whether it is getting done.
   */
-trait Director {
+trait Director[Attr] {
   implicit def executionContext: ExecutionContext
 
   /**
     * @return a repository of all of the `RegisteredWorkload`s that currently exist in the system.
     */
-  def registeredWorkloads: RegisteredWorkloads
+  def registeredWorkloads: RegisteredWorkloads[Attr]
 
   /**
     * @return A `WorkloadRegistry` instance that this whole Workload Management system will be able to use to create
     *         new `Workload` instances.
     */
-  def registry: WorkloadRegistry
+  def registry: WorkloadRegistry[Attr]
 
   /**
     * @return Managers that this `Director` has delegated a `Workload` to.  This is an interface that may be
     *         queried to find whether there is a `Manager` currently running a given `Workload`, and it also contains
     *         methods for creating new `Manager` instances.
     */
-  def managers: Managers
+  def managers: Managers[Attr]
 
   /**
     * Method that is invoked in order to pull the `Workload`s that are due to run, and to delegate that work out to
@@ -48,7 +48,7 @@ trait Director {
     */
   def delegateRunnableWorkloads()(
     implicit m: Materializer
-  ): Future[List[RegisteredWorkload]] = {
+  ): Future[List[RegisteredWorkload[Attr]]] = {
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable

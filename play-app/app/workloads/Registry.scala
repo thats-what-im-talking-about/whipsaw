@@ -23,20 +23,20 @@ import twita.whipsaw.impl.reactivemongo.MongoWorkloadRegistryEntry
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-trait AppRegistry {
+trait AppRegistry[Attr] {
   implicit def workloadContext: MongoContext with WorkloadContext
   implicit def executionContext: ExecutionContext
   implicit def actorSystem: ActorSystem
-  def registeredWorkloads: RegisteredWorkloads
+  def registeredWorkloads: RegisteredWorkloads[Attr]
 
-  val workloadDirector: Director = new LocalDirector(AppRegistryEntry, registeredWorkloads)
+  val workloadDirector: Director[Attr] = new LocalDirector(AppRegistryEntry, registeredWorkloads)
 
   sealed trait AppRegistryEntry extends WorkloadRegistryEntry with EnumEntry
 
-  object AppRegistryEntry extends Enum[AppRegistryEntry] with WorkloadRegistry {
+  object AppRegistryEntry extends Enum[AppRegistryEntry] with WorkloadRegistry[Attr] {
     val values = findValues
 
-    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] = {
+    override def apply(rw: RegisteredWorkload[Attr])(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] = {
       AppRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
     }
 

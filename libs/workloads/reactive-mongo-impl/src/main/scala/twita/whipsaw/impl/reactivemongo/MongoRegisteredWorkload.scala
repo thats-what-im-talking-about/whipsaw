@@ -53,8 +53,9 @@ abstract class MongoWorkloadRegistryEntry(
   ): WorkloadFactory[Payload, SParams, PParams] = new MongoWorkloadFactory(md)
 }
 
-case class RegisteredWorkloadDoc(
+case class RegisteredWorkloadDoc[Attr: OFormat](
   _id: WorkloadId,
+  attr: Attr,
   factoryType: String,
   schedulingStatus: SchedulingStatus = SchedulingStatus.Init,
   processingStatus: ProcessingStatus = ProcessingStatus.Init,
@@ -62,69 +63,76 @@ case class RegisteredWorkloadDoc(
 ) extends BaseDoc[WorkloadId]
 
 object RegisteredWorkloadDoc {
-  implicit val fmt = Json.format[RegisteredWorkloadDoc]
+  implicit def fmt[Attr: OFormat] = Json.format[RegisteredWorkloadDoc[Attr]]
 }
 
-trait RegisteredWorkloadDescriptor
-    extends ObjectDescriptor[EventId, RegisteredWorkload, RegisteredWorkloadDoc] {
+trait RegisteredWorkloadDescriptor[Attr]
+    extends ObjectDescriptor[EventId, RegisteredWorkload[Attr], RegisteredWorkloadDoc[
+      Attr
+    ]] {
   implicit def mongoContext: MongoContext
+  implicit protected def attrFmt: OFormat[Attr]
 
   override protected lazy val collectionName = "workloads"
-  override protected def cons
-    : Either[Empty[WorkloadId], RegisteredWorkloadDoc] => RegisteredWorkload = {
-    o =>
-      new MongoRegisteredWorkload(o)
+  override protected def cons: Either[Empty[WorkloadId], RegisteredWorkloadDoc[
+    Attr
+  ]] => RegisteredWorkload[Attr] = { o =>
+    new MongoRegisteredWorkload(o)
   }
 }
 
-class MongoRegisteredWorkload(
-  protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc]
+class MongoRegisteredWorkload[Attr: OFormat](
+  protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc[
+    Attr
+  ]]
 )(implicit executionContext: ExecutionContext,
   override val mongoContext: MongoContext)
-    extends ReactiveMongoObject[
-      EventId,
-      RegisteredWorkload,
-      RegisteredWorkloadDoc
-    ]
-    with RegisteredWorkloadDescriptor
-    with RegisteredWorkload {
+    extends ReactiveMongoObject[EventId, RegisteredWorkload[Attr], RegisteredWorkloadDoc[
+      Attr
+    ]]
+    with RegisteredWorkloadDescriptor[Attr]
+    with RegisteredWorkload[Attr] {
+  override val attrFmt = implicitly[OFormat[Attr]]
   override def stats: WorkloadStatistics = obj.stats
   override def schedulingStatus: SchedulingStatus = obj.schedulingStatus
   override def processingStatus: ProcessingStatus = obj.processingStatus
   override def factoryType: String = obj.factoryType
+  override def attr = obj.attr
   override def apply(
     event: RegisteredWorkload.Event,
     parent: Option[BaseEvent[EventId]]
-  ): Future[RegisteredWorkload] = ???
+  ): Future[RegisteredWorkload[Attr]] = ???
 
-  def refresh: Future[RegisteredWorkload] = {
+  def refresh: Future[RegisteredWorkload[Attr]] = {
     for {
       coll <- objCollectionFt
-      one <- coll.find(Json.obj("_id" -> id), None).one[RegisteredWorkloadDoc]
+      one <- coll
+        .find(Json.obj("_id" -> id), None)(jsObjectWrites, jsObjectWrites)
+        .one[RegisteredWorkloadDoc[Attr]]
     } yield cons(Right(one.get))
   }
 }
 
-class MongoRegisteredWorkloads()(implicit executionContext: ExecutionContext,
-                                 val mongoContext: MongoContext)
-    extends ReactiveMongoDomainObjectGroup[
-      EventId,
-      RegisteredWorkload,
-      RegisteredWorkloadDoc
-    ]
-    with RegisteredWorkloadDescriptor
-    with RegisteredWorkloads {
+class MongoRegisteredWorkloads[Attr: OFormat]()(
+  implicit executionContext: ExecutionContext,
+  val mongoContext: MongoContext
+) extends ReactiveMongoDomainObjectGroup[EventId, RegisteredWorkload[Attr], RegisteredWorkloadDoc[
+      Attr
+    ]]
+    with RegisteredWorkloadDescriptor[Attr]
+    with RegisteredWorkloads[Attr] {
+  override val attrFmt = implicitly[OFormat[Attr]]
   override protected def listConstraint: JsObject = Json.obj()
 
   override def list(
     q: DomainObjectGroup.Query
-  ): Future[List[RegisteredWorkload]] = ???
+  ): Future[List[RegisteredWorkload[Attr]]] = ???
 
-  override def getRunnable: Future[List[RegisteredWorkload]] =
+  override def getRunnable: Future[List[RegisteredWorkload[Attr]]] =
     getListByJsonCrit(Json.obj("stats.runAt" -> Json.obj("$lt" -> Instant.now)))
 
   override def apply(
     event: RegisteredWorkloads.Event,
     parent: Option[BaseEvent[EventId]]
-  ): Future[RegisteredWorkload] = ???
+  ): Future[RegisteredWorkload[Attr]] = ???
 }

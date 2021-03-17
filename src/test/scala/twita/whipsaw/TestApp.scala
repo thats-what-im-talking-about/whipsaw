@@ -34,6 +34,9 @@ object TestApp {
   case class SamplePayload(email: String, target: String, touchedCount: Int = 0)
   object SamplePayload { implicit val fmt = Json.format[SamplePayload] }
 
+  case class AppAttributes(projectId: Option[Long], orgId: Option[Long])
+  object AppAttributes { implicit val fmt = Json.format[AppAttributes] }
+
   // create a holder for the arguments that are going to the scheduler
   case class SampleSchedulerParams(numItems: Int)
   object SampleSchedulerParams {
@@ -99,10 +102,10 @@ object TestApp {
 
   object SampleRegistryEntry
       extends Enum[SampleRegistryEntry]
-      with WorkloadRegistry {
+      with WorkloadRegistry[AppAttributes] {
     val values = findValues
 
-    override def apply(rw: RegisteredWorkload)(
+    override def apply(rw: RegisteredWorkload[AppAttributes])(
       implicit executionContext: ExecutionContext
     ): Future[Workload[_, _, _]] = {
       SampleRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)

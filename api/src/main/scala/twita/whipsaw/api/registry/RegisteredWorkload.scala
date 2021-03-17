@@ -24,8 +24,11 @@ import scala.concurrent.Future
   * therefore assumed that if a Workload is created (via the {{Workloads.apply(Workload.Created(...))}} call) that this
   * workload would then be immediately retrievable by {{workloadId}} as a {{RegisteredWorkload}}.  In other words,
   * {{Workloads}} and {{RegisteredWorkloads}} are different views into the same repository.
+  *
+  * @tparam Attr
   */
-trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
+trait RegisteredWorkload[Attr]
+    extends DomainObject[EventId, RegisteredWorkload[Attr]] {
   override type AllowedEvent = RegisteredWorkload.Event
   override type ObjectId = WorkloadId
 
@@ -33,18 +36,19 @@ trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
   def stats: WorkloadStatistics
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
-  def refresh(): Future[RegisteredWorkload]
+  def attr: Attr
+  def refresh(): Future[RegisteredWorkload[Attr]]
 }
 
 object RegisteredWorkload {
   sealed class Event extends BaseEvent[EventId] with EventIdGenerator
 }
 
-trait RegisteredWorkloads
-    extends DomainObjectGroup[EventId, RegisteredWorkload] {
+trait RegisteredWorkloads[Attr]
+    extends DomainObjectGroup[EventId, RegisteredWorkload[Attr]] {
   override type AllowedEvent = RegisteredWorkloads.Event
 
-  def getRunnable: Future[List[RegisteredWorkload]]
+  def getRunnable: Future[List[RegisteredWorkload[Attr]]]
 }
 
 object RegisteredWorkloads {

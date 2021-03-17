@@ -8,13 +8,14 @@ import twita.whipsaw.api.registry.WorkloadRegistry
 
 import scala.concurrent.ExecutionContext
 
-class LocalDirector(
-    override val registry: WorkloadRegistry
-  , override val registeredWorkloads: RegisteredWorkloads
-)(implicit val executionContext: ExecutionContext, actorSystem: ActorSystem) extends Director {
+class LocalDirector[Attr](
+  override val registry: WorkloadRegistry[Attr],
+  override val registeredWorkloads: RegisteredWorkloads[Attr]
+)(implicit val executionContext: ExecutionContext, actorSystem: ActorSystem)
+    extends Director[Attr] {
 
   /**
     * @return Managers that are currently working on a Workload at the request of this Director.
     */
-  override lazy val managers: Managers = new LocalManagers(this)
+  override lazy val managers: Managers[Attr] = new LocalManagers[Attr](this)
 }

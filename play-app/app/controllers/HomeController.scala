@@ -21,7 +21,7 @@ import scala.concurrent.Future
 case class LaunchWorkloadRequest(name: String, items: Int)
 object LaunchWorkloadRequest { implicit val fmt = Json.format[LaunchWorkloadRequest] }
 
-class HomeController(cc: ControllerComponents, workloadDirector: engine.Director)(
+class HomeController(cc: ControllerComponents, workloadDirector: engine.Director[_])(
   implicit assetsFinder: AssetsFinder, system: ActorSystem, mat: Materializer, executionContext: ExecutionContext
 ) extends AbstractController(cc) {
 

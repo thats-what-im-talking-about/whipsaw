@@ -20,7 +20,7 @@ import scala.concurrent.Future
   * Does the work of "managing" the processing of a particular `Workload`.  The `Manager` instance (of which there
   * may be only one per `Workload`) encapsulates the work that needs to be done in order to process a `Workload`.
   */
-trait Manager {
+trait Manager[Attr] {
 
   /**
     * @return Executable `Workload` instance for which this `Manager` has been instantiated.
@@ -37,7 +37,7 @@ trait Manager {
   /**
     * @return the `Director` instance which created this `Manager`.
     */
-  def director: Director
+  def director: Director[Attr]
 
   /**
     * @return `ActorSystem` to use for the `statsTracker` Actor.
@@ -155,27 +155,27 @@ trait Manager {
   * way that the API provides for creating new `Manager` instances is through this `Managers` trait, so it serves
   * both as a repository and as a factory for a given `Director`'s activated `Manager`s.
   */
-trait Managers {
+trait Managers[Attr] {
 
   /**
     * @param workload `Workload` instance whose `Manager` we are looking for.
     * @return `Future` that will be completed with a `Manager` instance (either new or previously created)
     *         for the `Workload` provided.
     */
-  def forWorkload(workload: Workload[_, _, _]): Future[Manager]
+  def forWorkload(workload: Workload[_, _, _]): Future[Manager[Attr]]
 
   /**
     * @param workloadId WorkloadId whose Manager we are looking for.
     * @return Future that will be completed with the Manager instance (either new or previously created)
     *         for the workload id provided.
     */
-  def forWorkloadId(workloadId: WorkloadId): Future[Manager]
+  def forWorkloadId(workloadId: WorkloadId): Future[Manager[Attr]]
 
   /**
     * @param workloadId of the `Workload` (or `RegisteredWorkload`) for which we are looking for a `Manager`.
     * @return If one exists, the `Manager` for the associated `WorkloadId` is returned, otherwise None.
     */
-  def lookup(workloadId: WorkloadId): Option[Manager]
+  def lookup(workloadId: WorkloadId): Option[Manager[Attr]]
 
   /**
     * Adds a `Manager` instance to this `Managers` collection, and then "activates" the managed `Workload`.
@@ -183,11 +183,11 @@ trait Managers {
     * @return A `Future` that will be completed by the `Manager` instance associated with this `Workload`.  A
     *         `Workload` may have one and only ony `Manager` at a time, and that constraints is enforced here.
     */
-  def activate(manager: Manager): Future[Manager]
+  def activate(manager: Manager[Attr]): Future[Manager[Attr]]
 
   /**
     * Removes a Manager instance from this Managers collection, and then "deactivates" the workload.
     * @param manager Manager of the workload to be deactivated
     */
-  def deactivate(manager: Manager): Future[Unit]
+  def deactivate(manager: Manager[Attr]): Future[Unit]
 }
