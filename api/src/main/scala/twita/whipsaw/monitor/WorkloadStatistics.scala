@@ -9,6 +9,8 @@ case class WorkloadStatistics(scheduled: Long = 0,
                               scheduledForRetry: Long = 0,
                               completed: Long = 0,
                               error: Long = 0,
+                              itemsPerSec: Option[Double] = None,
+                              maxWorkers: Option[Int] = None,
                               runAt: Option[Instant] = Some(Instant.now)) {
   def apply(that: WorkloadStatistics): WorkloadStatistics = {
     copy(
@@ -21,6 +23,7 @@ case class WorkloadStatistics(scheduled: Long = 0,
     )
   }
 }
+
 object WorkloadStatistics {
   implicit val fmt = Json.format[WorkloadStatistics]
   val ScheduledToRunning = WorkloadStatistics(scheduled = -1, running = 1)

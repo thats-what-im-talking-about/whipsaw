@@ -5,12 +5,11 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.stream.Materializer
-import twita.whipsaw.api.workloads.ItemResult
+import twita.whipsaw.api.engine.WorkerFactoryActor.SetWorkerPoolSize
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
-import twita.whipsaw.monitor.WorkloadStatistics
 import twita.whipsaw.monitor.WorkloadStatsTracker
 
 import scala.concurrent.ExecutionContext
@@ -44,6 +43,8 @@ trait Manager {
     */
   def actorSystem: ActorSystem
 
+  def setWorkerPoolSize(i: Int) = statsTracker ! SetWorkerPoolSize(i)
+
   /**
     * Akka Actor that is responsible for asynchronously tracking the stats for the managed Workload.
     */
@@ -62,7 +63,8 @@ trait Manager {
     *         `Workload`.
     */
   def executeWorkload()(
-    implicit m: Materializer,
+    implicit actorSystem: ActorSystem,
+    m: Materializer,
     ec: ExecutionContext
   ): Future[(SchedulingStatus, ProcessingStatus)] = {
     director.managers.activate(this)
@@ -91,28 +93,15 @@ trait Manager {
               Instant.now,
               workload.batchSize
             )
-            result <- runnableItems
-              .mapAsyncUnordered(workload.desiredNumWorkers)(
-                workers.forItem(_).flatMap { worker =>
-                  worker.workItem.retryCount match {
-                    case 0 =>
-                      statsTracker ! WorkloadStatistics.ScheduledToRunning
-                    case _ =>
-                      statsTracker ! WorkloadStatistics.ScheduledRetryToRunning
-                  }
-                  worker.process().map {
-                    case r: ItemResult.Error =>
-                      statsTracker ! WorkloadStatistics.RunningToError
-                    case ItemResult.Done =>
-                      statsTracker ! WorkloadStatistics.RunningToCompleted
-                    case r: ItemResult.Retry =>
-                      statsTracker ! WorkloadStatistics.RunningToScheduledRetry
-                    case r: ItemResult.Reschedule =>
-                      statsTracker ! WorkloadStatistics.RunningToScheduled
-                  }
-                }
-              )
-              .runFold(0) { case (result, _) => result + 1 }
+            graph = new WorkloadExecutionGraph(
+              this,
+              runnableItems,
+              statsTracker
+            )
+            _ = setWorkerPoolSize(50)
+            result <- graph.workSource.runFold(0) {
+              case (result, _) => result + 1
+            }
             nextRunAt <- wl.workItems.nextRunAt
             status = nextRunAt match {
               case Some(_) => ProcessingStatus.Waiting

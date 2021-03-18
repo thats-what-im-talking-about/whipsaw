@@ -3,8 +3,11 @@ package twita.whipsaw
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorSystem
+import akka.actor.Cancellable
+import akka.actor.PoisonPill
 import akka.actor.Props
 import akka.stream.ActorMaterializer
+import akka.stream.CompletionStrategy
 import akka.stream.OverflowStrategy
 import akka.stream.SourceShape
 import akka.stream.scaladsl.GraphDSL
@@ -15,7 +18,9 @@ import akka.stream.scaladsl.Zip
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.Failure
 import scala.util.Random
+import scala.util.Success
 
 /**
   * This is really just a scratch file that I used to build up an Akka Stream that I could use to prove out the
@@ -35,6 +40,8 @@ object FeedbackConcurrency extends App {
   case class WorkersAvailable(workers: List[Worker])
       extends WorkerFactoryProtocol
   case class SetWorkerPoolSize(to: Int) extends WorkerFactoryProtocol
+  case object ShuttingDown extends WorkerFactoryProtocol
+  case object ShutDownTimeout extends WorkerFactoryProtocol
 
   class WorkerFactoryActor extends Actor with ActorLogging {
     override def receive: Receive = availableWorkers(0, 0, 0)
@@ -56,6 +63,33 @@ object FeedbackConcurrency extends App {
       case SetWorkerPoolSize(newMax) =>
         self ! WorkersAvailable(List())
         context.become(availableWorkers(newMax, current, currentId))
+
+      case ShuttingDown =>
+        val shutdownTimout = context.system.scheduler
+          .scheduleOnce(10.minute, self, ShutDownTimeout)
+        context.become(shuttingDown(max, current, shutdownTimout))
+    }
+
+    def shuttingDown(max: Int,
+                     current: Int,
+                     shutdownTimout: Cancellable): Receive = {
+      case WorkersAvailable(freedWorkers) =>
+        val newNumWorkers = current - freedWorkers.size
+        newNumWorkers match {
+          case 0 =>
+            log.info("workers are completed, shutting down")
+            shutdownTimout.cancel()
+            self ! akka.actor.Status.Success(CompletionStrategy.draining)
+            workCompletedActor !
+              akka.actor.Status.Success(CompletionStrategy.draining)
+          case n =>
+            context.become(shuttingDown(max, newNumWorkers, shutdownTimout))
+        }
+      case ShutDownTimeout =>
+        self ! akka.actor.Status.Success(CompletionStrategy.draining)
+        workCompletedActor !
+          akka.actor.Status.Success(CompletionStrategy.draining)
+      case _ =>
     }
   }
   val workerFactoryActor =
@@ -64,6 +98,14 @@ object FeedbackConcurrency extends App {
   val workerQueueInit =
     Source.queue[Worker](10, OverflowStrategy.dropHead)
   val (workerQueue, workerQueueSource) = workerQueueInit.preMaterialize()
+  workerQueue.watchCompletion().onComplete {
+    case Success(t) =>
+      println("queue is done!")
+      workerFactoryActor ! ShuttingDown
+    case Failure(t) =>
+      t.printStackTrace()
+      workerFactoryActor ! ShuttingDown
+  }
 
   case class TakeMeasurement(startTime: Long)
   class Speedometer extends Actor with ActorLogging {
@@ -130,8 +172,15 @@ object FeedbackConcurrency extends App {
     SourceShape(workCompletedSourceShape.out)
   })
 
-  workSource.runWith(Sink.foreach(println))
-
+  val result = workSource
+    .runWith(Sink.fold(0) { (result, _) =>
+      println(s"just procssed result $result")
+      result + 1
+    })
+    .onComplete {
+      case Success(i) => println(s"finished processing ${i} results")
+      case Failure(t) => t.printStackTrace()
+    }
   Thread.sleep(3000)
   workerFactoryActor ! SetWorkerPoolSize(5)
   Thread.sleep(3000)
@@ -139,5 +188,6 @@ object FeedbackConcurrency extends App {
   Thread.sleep(3000)
   workerFactoryActor ! SetWorkerPoolSize(0)
   Thread.sleep(10000)
-  workerFactoryActor ! SetWorkerPoolSize(10)
+  workerFactoryActor ! SetWorkerPoolSize(5)
+  Thread.sleep(3000)
 }

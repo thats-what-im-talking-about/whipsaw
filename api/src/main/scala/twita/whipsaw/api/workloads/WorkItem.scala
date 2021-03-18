@@ -4,6 +4,7 @@ import enumeratum._
 import java.time.Instant
 import java.util.UUID
 
+import akka.actor.ActorRef
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
@@ -23,6 +24,7 @@ import twita.dominion.api.EmptyEventFmt
 import twita.whipsaw.api.workloads.ItemResult.Done
 import twita.whipsaw.api.workloads.ItemResult.Reschedule
 import twita.whipsaw.api.workloads.ItemResult.Retry
+import twita.whipsaw.monitor.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -98,6 +100,15 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   def _eventStack: Option[Seq[JsObject]]
 
   protected def workload: Workload[Payload, _, _]
+
+  def updateStatsBeforeProcessing(statsTracker: ActorRef): Unit = {
+    retryCount match {
+      case 0 =>
+        statsTracker ! WorkloadStatistics.ScheduledToRunning
+      case _ =>
+        statsTracker ! WorkloadStatistics.ScheduledRetryToRunning
+    }
+  }
 
   def process()(implicit ec: ExecutionContext): Future[ItemResult] =
     for {

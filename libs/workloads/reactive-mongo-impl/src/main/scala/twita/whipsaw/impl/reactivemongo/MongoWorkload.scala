@@ -113,9 +113,6 @@ class MongoWorkload[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     case evt: StatsUpdated =>
       for {
         result <- update(SetOp(Json.toJsObject(evt)), evt, parent)
-        _ = println(
-          s"updating stats, new scheduling status is ${result.schedulingStatus}, stats: ${evt.stats}"
-        )
       } yield result
   }
 }

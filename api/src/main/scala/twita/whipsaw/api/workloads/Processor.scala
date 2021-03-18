@@ -2,12 +2,27 @@ package twita.whipsaw.api.workloads
 
 import java.time.Instant
 
+import akka.actor.ActorRef
 import enumeratum._
+import twita.whipsaw.monitor.WorkloadStatistics
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-sealed trait ItemResult extends EnumEntry
+sealed trait ItemResult extends EnumEntry {
+  def updateStatsWithResult(statsTracker: ActorRef): Unit = {
+    this match {
+      case r: ItemResult.Error =>
+        statsTracker ! WorkloadStatistics.RunningToError
+      case ItemResult.Done =>
+        statsTracker ! WorkloadStatistics.RunningToCompleted
+      case r: ItemResult.Retry =>
+        statsTracker ! WorkloadStatistics.RunningToScheduledRetry
+      case r: ItemResult.Reschedule =>
+        statsTracker ! WorkloadStatistics.RunningToScheduled
+    }
+  }
+}
 
 object ItemResult extends Enum[ItemResult] with PlayJsonEnum[ItemResult] {
   val values = findValues
