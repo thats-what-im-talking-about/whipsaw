@@ -163,6 +163,10 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
     implicit m: Materializer
   ): Future[Source[WorkItem[Payload], Any]]
 
+  def nextRunnablePage(size: Int): Future[List[WorkItem[Payload]]]
+
+  def nextRunnable: Future[Option[WorkItem[Payload]]]
+
   def nextRunAt: Future[Option[Instant]]
 
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator

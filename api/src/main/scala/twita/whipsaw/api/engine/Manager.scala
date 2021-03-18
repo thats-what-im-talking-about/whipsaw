@@ -5,9 +5,11 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import twita.whipsaw.api.engine.WorkerFactoryActor.SetWorkerPoolSize
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
+import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.monitor.WorkloadStatsTracker
@@ -82,53 +84,40 @@ trait Manager {
         } yield result
     }
 
-    def processRunnablesFt(last: Boolean): Future[ProcessingStatus] =
-      workload.processingStatus match {
-        case ProcessingStatus.Completed =>
-          Future.successful(ProcessingStatus.Completed)
-        case _ =>
-          (for {
-            running <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
-            runnableItems <- wl.workItems.runnableItemSource(
-              Instant.now,
-              workload.batchSize
-            )
-            graph = new WorkloadExecutionGraph(
-              this,
-              runnableItems,
-              statsTracker
-            )
-            _ = setWorkerPoolSize(50)
-            result <- graph.workSource.runFold(0) {
-              case (result, _) => result + 1
-            }
-            nextRunAt <- wl.workItems.nextRunAt
-            status = nextRunAt match {
-              case Some(_) => ProcessingStatus.Waiting
-              case _       => ProcessingStatus.Completed
-            }
-            _ <- wl(wl.ProcessingStatusUpdated(status))
-          } yield (result, nextRunAt)).flatMap {
-            case (numProcessed, nextRunAt) =>
-              statsTracker ! WorkloadStatsTracker.SaveStats
-              Thread.sleep(500)
-              numProcessed match {
-                case 0 if last =>
-                  statsTracker ! WorkloadStatsTracker.Deactivate(nextRunAt)
-                  Future.successful(wl.processingStatus)
-                case 0 => processRunnablesFt(true)
-                case _ => processRunnablesFt(false)
-              }
-          }
-      }
+    val runnableItems = Source
+      .unfoldAsync(None: Option[WorkItem[_]])(
+        o => wl.workItems.nextRunnable.map(_.map(o -> _))
+      )
 
-    val processResult = processRunnablesFt(false)
+    val processingStatusFt = workload.processingStatus match {
+      case ProcessingStatus.Completed =>
+        Future.successful(ProcessingStatus.Completed)
+      case _ =>
+        for {
+          _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
+          graph = new WorkloadExecutionGraph(this, runnableItems, statsTracker)
+          _ = setWorkerPoolSize(50)
+          result <- graph.workSource.runFold(0) {
+            case (result, _) => result + 1
+          }
+          nextRunAt <- wl.workItems.nextRunAt
+          status = nextRunAt match {
+            case Some(_) => ProcessingStatus.Waiting
+            case _       => ProcessingStatus.Completed
+          }
+          _ <- wl(wl.ProcessingStatusUpdated(status))
+        } yield {
+          println(s"processed ${result} items")
+          statsTracker ! WorkloadStatsTracker.Deactivate(nextRunAt)
+          status
+        }
+    }
 
     statsTracker ! wl.stats
 
     for {
       sStatus <- scheduledItemsFt
-      pStatus <- processResult
+      pStatus <- processingStatusFt
     } yield {
       director.managers.deactivate(this)
       (sStatus, pStatus)

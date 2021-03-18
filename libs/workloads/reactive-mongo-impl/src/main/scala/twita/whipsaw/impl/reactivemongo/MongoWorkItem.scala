@@ -6,9 +6,9 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
 import play.api.libs.json.JsObject
+import play.api.libs.json.JsSuccess
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
-import play.api.libs.json.OWrites
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.play.json.collection.JSONCollection
@@ -157,6 +157,30 @@ class MongoWorkItems[Payload: OFormat](
     ]]
     with WorkItemDescriptor[Payload]
     with WorkItems[Payload] {
+
+  override def nextRunnablePage(size: Int): Future[List[WorkItem[Payload]]] =
+    getListByJsonCrit(
+      constraint = Json.obj("runAt" -> Json.obj("$exists" -> true)),
+      sort = Json.obj("runAt" -> 1),
+      limit = size
+    )
+
+  override def nextRunnable: Future[Option[WorkItem[Payload]]] =
+    for {
+      coll <- objCollectionFt
+      nextUp <- coll
+        .findAndUpdate(
+          selector = Json.obj("runAt" -> Json.obj("$exists" -> true)),
+          update = Json.obj("$unset" -> Json.obj("runAt" -> 1)),
+          sort = Some(Json.obj("runAt" -> 1))
+        )
+        .map(_.value)
+        .map(_.map(js => Json.fromJson[WorkItemDoc[Payload]](js)))
+        .map {
+          case Some(JsSuccess(doc, _)) => Some(cons(Right(doc)))
+          case _                       => None
+        }
+    } yield nextUp
 
   override def nextRunAt: Future[Option[Instant]] =
     getListByJsonCrit(

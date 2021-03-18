@@ -6,7 +6,6 @@ import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorRef
 import akka.actor.Cancellable
-import akka.actor.PoisonPill
 import akka.pattern.pipe
 import twita.whipsaw.api.engine.Manager
 import twita.whipsaw.api.engine.WorkerFactoryActor
@@ -30,13 +29,17 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
                 timer: Option[Cancellable]): Receive = {
     // Update stats, start a timer if one is not set.
     case updateStats: WorkloadStatistics if timer.isEmpty =>
-      val timer = probes.headOption.map { _ =>
-        context.system.scheduler.scheduleOnce(1.second) {
-          self ! WorkloadStatsTracker.Report
-        }
+      val timer = context.system.scheduler.scheduleOnce(1.second) {
+        self ! WorkloadStatsTracker.Report
+        self ! WorkloadStatsTracker.SaveStats
       }
       context.become(
-        activated(workloadStatistics(updateStats), probes, workerFactory, timer)
+        activated(
+          workloadStatistics(updateStats),
+          probes,
+          workerFactory,
+          Some(timer)
+        )
       )
 
     // Update stats only
@@ -57,11 +60,12 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
 
     // Report the current WorkloadStats to all subscribing probes
     case WorkloadStatsTracker.Report =>
-      probes.foreach { case (workloadId, probe) => probe ! workloadStatistics }
+      probes.foreach { case (_, probe) => probe ! workloadStatistics }
       context.become(activated(workloadStatistics, probes, workerFactory, None))
 
     // Persist the WorkloadStats object into the workload
     case WorkloadStatsTracker.SaveStats =>
+      println(s"saving stats for workload ${workloadStatistics}")
       wl(wl.StatsUpdated(workloadStatistics))
 
     case WorkloadStatsTracker.AddProbe(workloadId, probe) =>
@@ -113,9 +117,9 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
                    timer: Option[Cancellable] = None): Receive = {
     case WorkloadStatsTracker.SaveStats =>
       pipe(wl(wl.StatsUpdated(workloadStatistics))).to(self)
-    case workload: Workload[_, _, _] =>
+    case _: Workload[_, _, _] =>
       timer.foreach(_.cancel())
-      self ! PoisonPill
+      context.stop(self)
   }
 }
 
