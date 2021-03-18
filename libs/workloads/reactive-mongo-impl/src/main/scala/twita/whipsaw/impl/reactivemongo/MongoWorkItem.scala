@@ -25,6 +25,7 @@ import twita.whipsaw.api.workloads.EventId
 import twita.whipsaw.api.workloads.WorkItem
 import twita.whipsaw.api.workloads.WorkItemId
 import twita.whipsaw.api.workloads.WorkItemStatus
+import twita.whipsaw.api.workloads.WorkItemStatus.Scheduled
 import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadContext
@@ -42,7 +43,8 @@ case class WorkItemDoc[Payload](
   status: Option[WorkItemStatus] = None,
   startedProcessingAt: Option[Instant] = None,
   finishedProcessingAt: Option[Instant] = None,
-  errorStoppedProcessingAt: Option[Instant] = None
+  errorStoppedProcessingAt: Option[Instant] = None,
+  _eventStack: Option[Seq[JsObject]] = None,
 ) extends BaseDoc[WorkItemId]
 object WorkItemDoc {
   implicit def fmt[Payload: Format] = Json.format[WorkItemDoc[Payload]]
@@ -76,6 +78,8 @@ class MongoWorkItem[Payload: OFormat](
   override def runAt: Option[Instant] = obj.runAt
   override def payload: Payload = obj.payload
   override def retryCount: Int = obj.retryCount
+  override def status: Option[WorkItemStatus] = obj.status
+  override def _eventStack: Option[Seq[JsonTime]] = obj._eventStack
 
   override def apply(event: AllowedEvent, parent: Option[BaseEvent[EventId]]) =
     event match {
@@ -218,7 +222,8 @@ class MongoWorkItems[Payload: OFormat](
           _id = WorkItemId(),
           workloadId = workload.id,
           runAt = evt.runAt,
-          payload = evt.payload
+          payload = evt.payload,
+          status = Some(Scheduled),
         ),
         evt,
         parent

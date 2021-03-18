@@ -1,7 +1,6 @@
 package twita.whipsaw.api.workloads
 
 import enumeratum._
-
 import java.time.Instant
 import java.util.UUID
 
@@ -9,6 +8,7 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import play.api.libs.json.Format
 import play.api.libs.json.JsError
+import play.api.libs.json.JsObject
 import play.api.libs.json.JsResult
 import play.api.libs.json.JsString
 import play.api.libs.json.JsSuccess
@@ -86,6 +86,16 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
     * @return Implementer-provided description of this work item.
     */
   def payload: Payload
+
+  /**
+    * @return Processing status of this work item.
+    */
+  def status: Option[WorkItemStatus]
+
+  /**
+    * @return Log of the events that have occurred against this work item.
+    */
+  def _eventStack: Option[Seq[JsObject]]
 
   protected def workload: Workload[Payload, _, _]
 
