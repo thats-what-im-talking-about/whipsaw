@@ -86,7 +86,28 @@ trait Manager {
 
     val runnableItems = Source
       .unfoldAsync(None: Option[WorkItem[_]])(
-        o => wl.workItems.nextRunnable.map(_.map(o -> _))
+        o =>
+          wl.workItems.nextRunnable.flatMap {
+            case Some(nextUp) => Future.successful(Some(o -> nextUp))
+            case None =>
+              wl.workItems.nextRunAt.flatMap {
+                case None => Future.successful(None)
+                case Some(nextRunAt) =>
+                  val sUntilNext =
+                    nextRunAt.getEpochSecond() - Instant.now.getEpochSecond
+                  sUntilNext match {
+                    case soon if soon < 5 =>
+                      println(
+                        s"sleeping for ${soon + 1}s, the next work item is almost ready!"
+                      )
+                      Thread.sleep((soon + 1) * 1000)
+                      wl.workItems.nextRunnable.map(_.map(o -> _))
+                    case later =>
+                      println(s"next runAt is in ${later}s, letting go...")
+                      Future.successful(None)
+                  }
+              }
+        }
       )
 
     val processingStatusFt = workload.processingStatus match {
