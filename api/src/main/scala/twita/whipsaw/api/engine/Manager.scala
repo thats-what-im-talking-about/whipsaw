@@ -95,7 +95,7 @@ trait Manager {
       case _ =>
         for {
           _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
-          graph = new WorkloadExecutionGraph(this, runnableItems, statsTracker)
+          graph = new WorkloadExecutionGraph(this, runnableItems)
           _ = setWorkerPoolSize(50)
           result <- graph.workSource.runFold(0) {
             case (result, _) => result + 1

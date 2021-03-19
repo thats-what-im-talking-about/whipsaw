@@ -149,8 +149,7 @@ object Speedometer {
   * Contains all of the scaffolding needed to set up a graph for executing a Workload.
   */
 class WorkloadExecutionGraph(manager: Manager,
-                             itemSource: Source[WorkItem[_], _],
-                             statsTracker: ActorRef)(
+                             itemSource: Source[WorkItem[_], _])(
   implicit system: ActorSystem,
   materializer: Materializer,
   executionContext: ExecutionContext
@@ -166,7 +165,7 @@ class WorkloadExecutionGraph(manager: Manager,
       workerFactoryActor ! ShuttingDown
   }
 
-  val speedometer = system.actorOf(Props(new Speedometer(statsTracker)))
+  val speedometer = system.actorOf(Props(new Speedometer(manager.statsTracker)))
 
   lazy val workCompletedActorInit =
     Source.actorRef[ItemResult](10, OverflowStrategy.dropHead)
@@ -179,10 +178,11 @@ class WorkloadExecutionGraph(manager: Manager,
         new WorkerFactoryActor(
           workerQueue,
           workCompletedActor,
-          statsTracker,
+          manager.statsTracker,
           speedometer
         )
-      )
+      ),
+      s"workerFactory-${manager.workload.id.value}"
     )
 
   lazy val workSource = Source.fromGraph(GraphDSL.create() { implicit builder =>
@@ -192,16 +192,18 @@ class WorkloadExecutionGraph(manager: Manager,
     val zip = builder.add(Zip[WorkItem[_], WorkerSlot])
     val processorSink = Sink.foreach[(WorkItem[_], WorkerSlot)] {
       case (item, workerToken) =>
-        for {
+        (for {
           worker <- manager.workers.forItem(item)
           _ = workerFactoryActor ! WorkerActivated(workerToken)
-          _ = item.updateStatsBeforeProcessing(statsTracker)
+          _ = item.updateStatsBeforeProcessing(manager.statsTracker)
           result <- worker.process()
-          _ = result.updateStatsWithResult(statsTracker)
+          _ = result.updateStatsWithResult(manager.statsTracker)
         } yield {
           workerFactoryActor ! WorkersAvailable(List(workerToken))
           workCompletedActor ! result
           speedometer ! BumpStats
+        }).recover {
+          case t: Throwable => t.printStackTrace()
         }
     }
     val workCompletedSourceShape = builder.add(workCompletedSource)
