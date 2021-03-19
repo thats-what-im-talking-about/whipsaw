@@ -82,7 +82,7 @@ object TestApp {
         payload.touchedCount match {
           case 0 =>
             (
-              ItemResult.Reschedule(Instant.now.plusMillis(15000)),
+              ItemResult.Reschedule(Instant.now.plusMillis(20000)),
               payload.copy(touchedCount = payload.touchedCount + 1)
             )
           case _ =>
