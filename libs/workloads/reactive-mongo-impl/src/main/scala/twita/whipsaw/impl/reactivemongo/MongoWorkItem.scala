@@ -170,7 +170,7 @@ class MongoWorkItems[Payload: OFormat](
       coll <- objCollectionFt
       nextUp <- coll
         .findAndUpdate(
-          selector = Json.obj("runAt" -> Json.obj("$exists" -> true)),
+          selector = Json.obj("runAt" -> Json.obj("$lt" -> Instant.now())),
           update = Json.obj("$unset" -> Json.obj("runAt" -> 1)),
           sort = Some(Json.obj("runAt" -> 1))
         )
