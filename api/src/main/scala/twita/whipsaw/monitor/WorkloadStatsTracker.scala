@@ -11,70 +11,92 @@ import twita.whipsaw.api.engine.Manager
 import twita.whipsaw.api.engine.WorkerFactoryActor
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
+import twita.whipsaw.monitor.WorkloadStatsTracker.SaveStats
+import twita.whipsaw.monitor.WorkloadStatsTracker.StatsSaved
 import twita.whipsaw.monitor.WorkloadStatsTracker.SetWorkerFactory
+import twita.whipsaw.monitor.WorkloadStatsTracker.TakeMeasurement
 
 import scala.concurrent.duration._
 
 class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 
+  override def preStart(): Unit =
+    log.info(s"Starting up stats tracker for ${manager.workload.id}")
+  context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
+
   override def receive: Receive =
-    activated(WorkloadStatistics(), Map.empty, None, None)
+    activated(WorkloadStatistics(), Map.empty, 0, None, None, None)
 
   val wl = manager.workload
 
   def activated(workloadStatistics: WorkloadStatistics,
                 probes: Map[WorkloadId, ActorRef],
+                count: Int,
                 workerFactory: Option[ActorRef],
-                timer: Option[Cancellable]): Receive = {
+                saveTimer: Option[Cancellable],
+                taskTimer: Option[Cancellable]): Receive = {
+
     // Update stats, start a timer if one is not set.
-    case updateStats: WorkloadStatistics if timer.isEmpty =>
-      val timer = context.system.scheduler.scheduleOnce(1.second) {
-        self ! WorkloadStatsTracker.Report
-        self ! WorkloadStatsTracker.SaveStats
-      }
+    case updateStats: WorkloadStatistics =>
+      val newSaveTimer = saveTimer.fold(
+        context.system.scheduler.scheduleOnce(1.second, self, SaveStats)
+      )(t => t)
       context.become(
         activated(
           workloadStatistics(updateStats),
           probes,
+          count + Math.max(0, updateStats.running.toInt),
           workerFactory,
-          Some(timer)
+          Some(newSaveTimer),
+          taskTimer
         )
       )
 
-    // Update stats only
-    case updateStats: WorkloadStatistics =>
-      context.become(
-        activated(workloadStatistics(updateStats), probes, workerFactory, timer)
-      )
-
-    case itemsPerSec: Double =>
+    case TakeMeasurement(startTime) =>
+      val itemsPerSec =
+        count * 1000.0 / (System.currentTimeMillis() - startTime)
+      val newTaskTimer =
+        context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
       context.become(
         activated(
           workloadStatistics.copy(itemsPerSec = Some(itemsPerSec)),
           probes,
+          0,
           workerFactory,
-          timer
+          saveTimer,
+          Some(newTaskTimer)
         )
       )
 
-    // Report the current WorkloadStats to all subscribing probes
-    case WorkloadStatsTracker.Report =>
-      probes.foreach { case (_, probe) => probe ! workloadStatistics }
-      context.become(activated(workloadStatistics, probes, workerFactory, None))
-
     // Persist the WorkloadStats object into the workload
     case WorkloadStatsTracker.SaveStats =>
-      println(s"saving stats for workload ${workloadStatistics}")
-      wl(wl.StatsUpdated(workloadStatistics))
+      log.info(s"saving stats for workload ${workloadStatistics}")
+      probes.foreach { case (_, probe) => probe ! workloadStatistics }
+      wl(wl.StatsUpdated(workloadStatistics)).map(_ => StatsSaved).to(self)
+
+    case StatsSaved =>
+      saveTimer.foreach(_.cancel())
+      context.become(
+        activated(
+          workloadStatistics,
+          probes,
+          count,
+          workerFactory,
+          None,
+          taskTimer
+        )
+      )
 
     case WorkloadStatsTracker.AddProbe(workloadId, probe) =>
       context.become(
         activated(
           workloadStatistics,
           probes + (workloadId -> probe),
+          count,
           workerFactory,
-          timer
+          saveTimer,
+          taskTimer
         )
       )
 
@@ -84,7 +106,14 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
         workloadStatistics.maxWorkers.getOrElse(0)
       )
       context.become(
-        activated(workloadStatistics, probes, Some(workerFactory), timer)
+        activated(
+          workloadStatistics,
+          probes,
+          count,
+          Some(workerFactory),
+          saveTimer,
+          taskTimer
+        )
       )
 
     case setPoolSize: WorkerFactoryActor.SetWorkerPoolSize =>
@@ -97,37 +126,37 @@ class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
         activated(
           workloadStatistics.copy(maxWorkers = Some(setPoolSize.to)),
           probes,
+          count,
           workerFactory,
-          timer
+          saveTimer,
+          taskTimer
         )
       )
 
     case WorkloadStatsTracker.Deactivate(nextRunAt) =>
       self ! WorkloadStatsTracker.SaveStats
       probes.foreach { case (_, probe) => probe ! Probe.Deactivate }
+      saveTimer.foreach(_.cancel())
+      taskTimer.foreach(_.cancel())
       context.become(
-        deactivating(
-          workloadStatistics(WorkloadStatistics(runAt = nextRunAt)),
-          timer
-        )
+        deactivating(workloadStatistics(WorkloadStatistics(runAt = nextRunAt)))
       )
   }
 
-  def deactivating(workloadStatistics: WorkloadStatistics,
-                   timer: Option[Cancellable] = None): Receive = {
+  def deactivating(workloadStatistics: WorkloadStatistics): Receive = {
     case WorkloadStatsTracker.SaveStats =>
       pipe(wl(wl.StatsUpdated(workloadStatistics))).to(self)
     case _: Workload[_, _, _] =>
-      timer.foreach(_.cancel())
       context.stop(self)
   }
 }
 
 object WorkloadStatsTracker {
   case object SaveStats
+  case object StatsSaved
   case class AddProbe(workloadId: WorkloadId, probe: ActorRef)
   case class SetWorkerFactory(workerFactory: ActorRef)
   case class RemoveProbe(workloadId: WorkloadId)
   case class Deactivate(nextRunAt: Option[Instant])
-  case object Report
+  case class TakeMeasurement(startTime: Long = System.currentTimeMillis())
 }

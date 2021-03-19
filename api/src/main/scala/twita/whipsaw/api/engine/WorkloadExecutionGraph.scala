@@ -5,7 +5,6 @@ import akka.actor.ActorLogging
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Cancellable
-import akka.actor.PoisonPill
 import akka.actor.Props
 import akka.stream.CompletionStrategy
 import akka.stream.Materializer
@@ -17,8 +16,6 @@ import akka.stream.scaladsl.Source
 import akka.stream.scaladsl.SourceQueueWithComplete
 import akka.stream.scaladsl.Zip
 import akka.util.Timeout
-import twita.whipsaw.api.engine.Speedometer.BumpStats
-import twita.whipsaw.api.engine.Speedometer.TakeMeasurement
 import twita.whipsaw.api.engine.WorkerFactoryActor.SetWorkerPoolSize
 import twita.whipsaw.api.engine.WorkerFactoryActor.ShutDownTimeout
 import twita.whipsaw.api.engine.WorkerFactoryActor.ShuttingDown
@@ -50,8 +47,7 @@ object WorkerFactoryActor {
 
 class WorkerFactoryActor(workerQueue: SourceQueueWithComplete[WorkerSlot],
                          workCompletedActor: ActorRef,
-                         statsTracker: ActorRef,
-                         speedometer: ActorRef)
+                         statsTracker: ActorRef)
     extends Actor
     with ActorLogging {
   implicit lazy val executionContext = context.dispatcher
@@ -82,7 +78,9 @@ class WorkerFactoryActor(workerQueue: SourceQueueWithComplete[WorkerSlot],
       context.become(availableWorkers(max, current, active + 1, currentId))
 
     case SetWorkerPoolSize(newMax) =>
-      log.info(s"new max workers is ${newMax}")
+      log.info(
+        s"new max workers is ${newMax}, current: ${current}, active: ${active}"
+      )
       self ! WorkersAvailable(List())
       context.become(availableWorkers(newMax, current, active, currentId))
 
@@ -103,8 +101,11 @@ class WorkerFactoryActor(workerQueue: SourceQueueWithComplete[WorkerSlot],
           log.info("workers are completed, shutting down")
           shutdownTimout.cancel()
           self ! akka.actor.Status.Success(CompletionStrategy.draining)
-          workCompletedActor !
+          context.system.scheduler.scheduleOnce(
+            2.second,
+            workCompletedActor,
             akka.actor.Status.Success(CompletionStrategy.draining)
+          )
         case n =>
           context.become(shuttingDown(max, newActive, shutdownTimout))
       }
@@ -112,37 +113,8 @@ class WorkerFactoryActor(workerQueue: SourceQueueWithComplete[WorkerSlot],
       self ! akka.actor.Status.Success(CompletionStrategy.draining)
       workCompletedActor !
         akka.actor.Status.Success(CompletionStrategy.draining)
-      speedometer ! PoisonPill
     case _ =>
   }
-}
-
-class Speedometer(statsTracker: ActorRef) extends Actor with ActorLogging {
-  implicit lazy val executionContext = context.system.dispatcher
-
-  override def receive: Receive = messageCounter(0)
-
-  override def preStart(): Unit = {
-    context.system.scheduler
-      .scheduleOnce(1.second, self, TakeMeasurement())
-  }
-
-  def messageCounter(cnt: Int): Receive = {
-    case TakeMeasurement(started) =>
-      val ended = System.currentTimeMillis()
-      val duration = ended - started
-      val rate = cnt.toDouble / duration
-      statsTracker ! rate
-      context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
-      context.become(messageCounter(0))
-    case BumpStats =>
-      context.become(messageCounter(cnt + 1))
-  }
-}
-
-object Speedometer {
-  case class TakeMeasurement(startTime: Long = System.currentTimeMillis())
-  case object BumpStats
 }
 
 /**
@@ -155,7 +127,7 @@ class WorkloadExecutionGraph(manager: Manager,
   executionContext: ExecutionContext
 ) {
   lazy val workerQueueInit =
-    Source.queue[WorkerSlot](10, OverflowStrategy.dropHead)
+    Source.queue[WorkerSlot](1000, OverflowStrategy.backpressure)
   lazy val (workerQueue, workerQueueSource) = workerQueueInit.preMaterialize()
   workerQueue.watchCompletion().onComplete {
     case Success(t) =>
@@ -165,10 +137,8 @@ class WorkloadExecutionGraph(manager: Manager,
       workerFactoryActor ! ShuttingDown
   }
 
-  val speedometer = system.actorOf(Props(new Speedometer(manager.statsTracker)))
-
   lazy val workCompletedActorInit =
-    Source.actorRef[ItemResult](10, OverflowStrategy.dropHead)
+    Source.actorRef[ItemResult](1000, OverflowStrategy.dropHead)
   lazy val (workCompletedActor, workCompletedSource) =
     workCompletedActorInit.preMaterialize()
 
@@ -179,10 +149,8 @@ class WorkloadExecutionGraph(manager: Manager,
           workerQueue,
           workCompletedActor,
           manager.statsTracker,
-          speedometer
         )
-      ),
-      s"workerFactory-${manager.workload.id.value}"
+      )
     )
 
   lazy val workSource = Source.fromGraph(GraphDSL.create() { implicit builder =>
@@ -201,7 +169,6 @@ class WorkloadExecutionGraph(manager: Manager,
         } yield {
           workerFactoryActor ! WorkersAvailable(List(workerToken))
           workCompletedActor ! result
-          speedometer ! BumpStats
         }).recover {
           case t: Throwable => t.printStackTrace()
         }
