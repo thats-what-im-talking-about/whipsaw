@@ -107,36 +107,6 @@ object FeedbackConcurrency extends App {
       workerFactoryActor ! ShuttingDown
   }
 
-  case class TakeMeasurement(startTime: Long)
-  class Speedometer extends Actor with ActorLogging {
-    override def receive: Receive = messageCounter(0)
-
-    override def preStart(): Unit = {
-      system.scheduler.scheduleOnce(
-        1.second,
-        self,
-        TakeMeasurement(System.currentTimeMillis())
-      )
-    }
-
-    def messageCounter(cnt: Int): Receive = {
-      case (_: Worker, _: String) =>
-        context.become(messageCounter(cnt + 1))
-      case TakeMeasurement(started) =>
-        val ended = System.currentTimeMillis()
-        val duration = ended - started
-        val rate = cnt.toDouble / duration
-        log.info(s"rate is ${rate * 1000} messages per s")
-        system.scheduler.scheduleOnce(
-          1.second,
-          self,
-          TakeMeasurement(System.currentTimeMillis())
-        )
-        context.become(messageCounter(0))
-    }
-  }
-  val speedometer = system.actorOf(Props[Speedometer], "Speedometer")
-
   val workCompletedActorInit =
     Source.actorRef[(String, Worker)](10, OverflowStrategy.dropHead)
   val (workCompletedActor, workCompletedSource) =
@@ -157,7 +127,6 @@ object FeedbackConcurrency extends App {
           case r @ (worker, _) =>
             workerFactoryActor ! WorkersAvailable(List(worker))
             workCompletedActor ! r
-            speedometer ! r
         }
     }
     val workCompletedSourceShape = builder.add(workCompletedSource)
