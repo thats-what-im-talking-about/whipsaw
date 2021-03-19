@@ -76,7 +76,7 @@ object TestApp {
     ): Future[(ItemResult, SamplePayload)] = Future {
       //Thread.sleep(100)
 
-      if (Random.nextInt(100) < 20)
+      if (Random.nextInt(100) < 0)
         (ItemResult.Retry(new RuntimeException()), payload)
       else
         payload.touchedCount match {
