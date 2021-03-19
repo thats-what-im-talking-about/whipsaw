@@ -79,7 +79,10 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
         .map(_.get)
       _ = workload.stats.runAt
         .map { until =>
-          val sleepUntilRunAt = (until.getEpochSecond - Instant.now.getEpochSecond + 5) * 1000
+          val sleepUntilRunAt = Math.max(
+            0,
+            (until.getEpochSecond - Instant.now.getEpochSecond + 5) * 1000
+          )
           Thread.sleep(sleepUntilRunAt)
         }
       result <- director.delegateRunnableWorkloads()
