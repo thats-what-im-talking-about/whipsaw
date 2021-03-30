@@ -107,8 +107,6 @@ trait Workload[Payload, SParams, PParams]
   def metadata: Metadata[Payload, SParams, PParams]
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
-  def batchSize: Int = 100
-  def desiredNumWorkers: Int = 50
 
   def stats: WorkloadStatistics
 
