@@ -2,9 +2,16 @@ package twita.whipsaw
 
 import java.time.Instant
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.stream.ActorMaterializer
+import akka.stream.KillSwitches
+import akka.stream.Materializer
+import akka.stream.UniqueKillSwitch
+import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.MergeHub
+import akka.stream.scaladsl.Sink
 import akka.stream.scaladsl.Source
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
@@ -31,8 +38,10 @@ import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.monitor.WorkloadStatistics
 import twita.whipsaw.monitor.WorkloadStatsTracker
 
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.util.Failure
 import scala.util.Success
 
 case class P(i: Int, s: String)
@@ -81,6 +90,46 @@ class TestManager(val actorSystem: ActorSystem) extends Manager {
     ): Future[Worker] = Future.successful(new TestWorker(item))
   }
   override def director: Director = ???
+}
+
+object RefreshingSource extends App {
+  implicit val system = ActorSystem("ManagerTestApp")
+  implicit val materializer = ActorMaterializer
+  implicit val ec = system.dispatcher
+
+  val sources =
+    List(Source(1 to 10), Source(100 to 110), Source(200 to 210)).iterator
+
+  val f = () =>
+    Future {
+      Thread.sleep(1000)
+      if (sources.hasNext) Some(sources.next)
+      else None
+  }
+
+  RefreshingSource(f, Sink.foreach(println)).run()
+}
+
+case class RefreshingSource[T](
+  refresher: () => Future[Option[Source[T, NotUsed]]],
+  consumer: Sink[T, _]
+)(implicit m: Materializer, ec: ExecutionContext) {
+  val sink = MergeHub.source[T](perProducerBufferSize = 16).to(consumer).run()
+
+  def run(): Future[Any] = {
+    refresher().map {
+      case None =>
+      case Some(src) =>
+        src
+          .watchTermination() { (_, future) =>
+            future.onComplete {
+              case Failure(exception) => println(exception.getMessage)
+              case Success(_)         => run()
+            }
+          }
+          .runWith(sink)
+    }
+  }
 }
 
 object ManagerTestApp extends App {
