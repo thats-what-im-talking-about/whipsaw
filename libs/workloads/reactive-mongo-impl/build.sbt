@@ -5,5 +5,5 @@ name := "whipsaw-workload-reactive-mongo-impl"
 scalaVersion := scalaVsn
 
 libraryDependencies ++= Seq(
-  "twita" %% "dominion-reactive-mongo-impl" % dominionVersion
+  "io.github.thats-what-im-talking-about" %% "dominion-reactive-mongo-impl" % dominionVersion
 )

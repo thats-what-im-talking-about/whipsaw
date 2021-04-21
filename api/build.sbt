@@ -5,6 +5,6 @@ name := "whipsaw-api"
 scalaVersion := scalaVsn
 
 libraryDependencies ++= Seq(
-  "twita" %% "dominion-api" % dominionVersion,
+  "io.github.thats-what-im-talking-about" %% "dominion-api" % dominionVersion,
   "com.typesafe.akka" %% "akka-stream" % akkaVersion
 )

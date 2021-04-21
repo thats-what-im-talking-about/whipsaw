@@ -1,6 +1,5 @@
 import Dependencies._
 
-ThisBuild / organization := "twita"
 ThisBuild / version := whipsawVersion
 name := "whipsaw"
 
@@ -40,6 +39,8 @@ lazy val `workload-reactive-mongo-impl` =
 lazy val `workload-in-memory-impl` =
   (project in file("libs/workloads/in-memory-impl")).dependsOn(api)
 
+`workload-in-memory-impl` / publish / skip := true
+
 lazy val `engine-local-functions` =
   (project in file("libs/engines/local-functions")).dependsOn(api)
 
@@ -47,6 +48,8 @@ lazy val `play-app` = (project in file("play-app"))
   .enablePlugins(PlayScala)
   .dependsOn(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
   .aggregate(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
+
+`play-app` / publish / skip := true
 
 lazy val root = (project in file("."))
   .dependsOn(api, `workload-reactive-mongo-impl`, `engine-local-functions`)
@@ -56,3 +59,44 @@ lazy val root = (project in file("."))
     `engine-local-functions`,
     `play-app`
   )
+
+root / publish / skip := true
+
+//
+//          S   O   N   A   T   Y   P   E  
+//
+//      P   U   B   L   I   S   H   I   N   G
+//
+
+ThisBuild / organization := "io.github.thats-what-im-talking-about"
+ThisBuild / organizationName := "TWITA"
+ThisBuild / organizationHomepage := Some(url("http://gihub.com/thats-what-im-talking-about"))
+
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/thats-what-im-talking-about/whipsaw"),
+    "scm:git@github.com:thats-what-im-talking-about/whipsaw.git"
+  )
+)
+ThisBuild / developers := List(
+  Developer(
+    id    = "bplawler",
+    name  = "Brian Lawler",
+    email = "bplawler@gmail.com",
+    url   = url("https://github.com/bplawler")
+  )
+)
+
+ThisBuild / description := "Generic Workload Management framework"
+ThisBuild / licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt"))
+ThisBuild / homepage := Some(url("https://github.com/thats-what-im-talking-about/whipsaw"))
+
+// Remove all additional repository other than Maven Central from POM
+ThisBuild / pomIncludeRepository := { _ => false }
+ThisBuild / publishTo := {
+  val nexus = "https://s01.oss.sonatype.org/"
+  if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
+  else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+ThisBuild / publishMavenStyle := true
+

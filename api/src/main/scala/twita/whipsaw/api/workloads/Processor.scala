@@ -39,7 +39,7 @@ object ItemResult extends Enum[ItemResult] with PlayJsonEnum[ItemResult] {
   * @tparam Payload The application-defined payload for the Workload that is being processed.
   */
 trait Processor[Payload] {
-  // TODO: Document the remaining cases for ItemResult outcomes.
+
   /**
     * @param payload App-specific instance of a payload that is being processed
     * @return Eventually, an updated version of the payload as well as an ItemResult that will instruct the

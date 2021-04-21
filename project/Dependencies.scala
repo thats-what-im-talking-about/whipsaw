@@ -8,7 +8,7 @@ import sbt._
   * https://www.scala-sbt.org/1.x/docs/Organizing-Build.html
   */
 object Dependencies {
-  lazy val whipsawVersion = "0.1.0"
+  lazy val whipsawVersion = "0.1.1"
 
   // ----------------------------------------------------------------------
   //
