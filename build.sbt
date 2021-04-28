@@ -14,7 +14,7 @@ scalacOptions in ThisBuild ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.scalactic" %% "scalactic" % "3.2.0",
+  "org.scalactic" %% "scalactic" % "3.2.0" % "test",
   "org.scalatest" %% "scalatest" % "3.2.0" % "test",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.30" % "test"
   //, "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
