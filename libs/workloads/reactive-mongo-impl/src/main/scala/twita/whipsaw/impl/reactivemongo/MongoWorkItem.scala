@@ -158,6 +158,12 @@ class MongoWorkItems[Payload: OFormat](
     with WorkItemDescriptor[Payload]
     with WorkItems[Payload] {
 
+  override def initialize: Future[Boolean] =
+    for {
+      coll <- objCollectionFt
+      ensureIndexes <- ensureIndexes(coll)
+    } yield ensureIndexes
+
   override def nextRunnablePage(size: Int): Future[List[WorkItem[Payload]]] =
     getListByJsonCrit(
       constraint = Json.obj("runAt" -> Json.obj("$exists" -> true)),

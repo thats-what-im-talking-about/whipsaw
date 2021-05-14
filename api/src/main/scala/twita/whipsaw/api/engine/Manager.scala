@@ -14,8 +14,10 @@ import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.monitor.WorkloadStatsTracker
 
+import scala.concurrent.Await
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 /**
   * Does the work of "managing" the processing of a particular `Workload`.  The `Manager` instance (of which there
@@ -72,6 +74,8 @@ trait Manager {
     director.managers.activate(this)
 
     val wl = workload // transforms workload into a val, fixes compiler error
+
+    val initialized = Await.result(wl.workItems.initialize, 2.second)
 
     val scheduledItemsFt = workload.schedulingStatus match {
       case SchedulingStatus.Completed =>

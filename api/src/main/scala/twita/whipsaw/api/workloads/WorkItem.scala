@@ -169,6 +169,8 @@ trait WorkItems[Payload] extends DomainObjectGroup[EventId, WorkItem[Payload]] {
 
   def nextRunAt: Future[Option[Instant]]
 
+  def initialize: Future[Boolean]
+
   sealed trait Event extends BaseEvent[EventId] with EventIdGenerator
 
   case class WorkItemAdded(payload: Payload,
