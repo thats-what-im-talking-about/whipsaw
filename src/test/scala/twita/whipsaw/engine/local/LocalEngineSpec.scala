@@ -7,19 +7,17 @@ import akka.actor.ActorSystem
 import org.scalatest.flatspec._
 import org.scalatest.matchers._
 import twita.dominion.api.DomainObjectGroup
-import twita.dominion.impl.reactivemongo.DevMongoContextImpl
 import twita.whipsaw.TestApp
 import twita.whipsaw.api.registry.RegisteredWorkloads
 import twita.whipsaw.api.workloads.ProcessingStatus
 import twita.whipsaw.api.workloads.SchedulingStatus
-import twita.whipsaw.api.workloads.WorkloadContext
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.impl.engine.localFunctions.LocalDirector
 import twita.whipsaw.impl.reactivemongo.MongoRegisteredWorkloads
 
 class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
   import TestApp.materializer
-  implicit val mongoContext = new DevMongoContextImpl with WorkloadContext
+  import TestApp.mongoContext
   implicit val actorSystem = ActorSystem("LocalEngineSpec")
 
   val director = new LocalDirector(
