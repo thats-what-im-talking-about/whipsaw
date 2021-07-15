@@ -122,8 +122,7 @@ trait Workload[Payload, SParams, PParams]
   )(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
     for {
       payloadIterator <- scheduler.schedule()
-      source = Source
-        .fromIterator(() => payloadIterator)
+      source = payloadIterator
         .mapAsyncUnordered(10) { payload =>
           statsTracker ! WorkloadStatistics(scheduled = 1)
           // TODO: duplicates need to be handled more specifically that Throwable during scheduling.

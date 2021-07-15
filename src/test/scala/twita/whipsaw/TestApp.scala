@@ -2,8 +2,10 @@ package twita.whipsaw
 
 import java.time.Instant
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import enumeratum._
 import play.api.libs.json.Json
 import play.api.libs.json.OFormat
@@ -55,10 +57,13 @@ object TestApp {
       extends Scheduler[SamplePayload] {
     override def schedule()(
       implicit ec: ExecutionContext
-    ): Future[Iterator[SamplePayload]] = Future {
-      Range(0, p.numItems).iterator.map { index =>
-        SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
-      }
+    ): Future[Source[SamplePayload, NotUsed]] = Future {
+      Source.fromIterator(
+        () =>
+          Range(0, p.numItems).iterator.map { index =>
+            SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
+        }
+      )
     }
   }
 
