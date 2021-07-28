@@ -16,12 +16,14 @@ class ToUpperScheduler(params: ItemCountParams)
     extends Scheduler[StringPayload] {
   override def schedule()(
     implicit ec: ExecutionContext
-  ): Future[Source[StringPayload, NotUsed]] = Future {
-    Source.fromIterator(
-      () =>
-        Range(0, params.numItems).iterator.map { index =>
-          StringPayload(s"bplawler+${index}@gmail.com", s"item #${index}")
-      }
-    )
+  ): Future[Source[StringPayload, Future[Long]]] = Future {
+    Source
+      .fromIterator(
+        () =>
+          Range(0, params.numItems).iterator.map { index =>
+            StringPayload(s"bplawler+${index}@gmail.com", s"item #${index}")
+        }
+      )
+      .mapMaterializedValue(_ => Future.successful(params.numItems.longValue()))
   }
 }

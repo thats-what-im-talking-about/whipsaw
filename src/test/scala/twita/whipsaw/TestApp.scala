@@ -57,13 +57,15 @@ object TestApp {
       extends Scheduler[SamplePayload] {
     override def schedule()(
       implicit ec: ExecutionContext
-    ): Future[Source[SamplePayload, NotUsed]] = Future {
-      Source.fromIterator(
-        () =>
-          Range(0, p.numItems).iterator.map { index =>
-            SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
-        }
-      )
+    ): Future[Source[SamplePayload, Future[Long]]] = Future {
+      Source
+        .fromIterator(
+          () =>
+            Range(0, p.numItems).iterator.map { index =>
+              SamplePayload(s"bplawler+${index}@gmail.com", s"item #${index}")
+          }
+        )
+        .mapMaterializedValue(_ => Future.successful(p.numItems.longValue()))
     }
   }
 

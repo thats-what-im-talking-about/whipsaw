@@ -1,6 +1,5 @@
 package twita.whipsaw.api.workloads
 
-import akka.NotUsed
 import akka.stream.scaladsl.Source
 
 import scala.concurrent.ExecutionContext
@@ -27,11 +26,12 @@ trait Scheduler[Payload] {
     * Workload Management framework calls this function in order to populate the [[Workload]] with work to execute.
     *
     * @param ec
-    * @return A Future that will be completed with a [[Source]] which will be processed by the frwmework.
+    * @return A Future that will be completed with a [[Source]] which will be processed by the framework.  The
+    *         materialized value for this source will be the number of Payloads that the scheduler found.
     */
   def schedule()(
     implicit ec: ExecutionContext
-  ): Future[Source[Payload, NotUsed]]
+  ): Future[Source[Payload, Future[Long]]]
 
   /**
     * Payloads tied to a particular [[Workload]] should be unique on some attribute as specified in the [[Metadata]]
