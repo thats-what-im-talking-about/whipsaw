@@ -15,6 +15,8 @@ So, in order to push a snapshot you would just push code to the master branch he
 git push origin v0.1.6
 ```
 
+Newly published jars should be visible on the Sonatype repo via this [search](https://s01.oss.sonatype.org/#nexus-search;quick~whipsaw).
+
 ## Testing Info
 
 The Whipsaw library has some tests that make use of the MongoDB persistence layer.  In order to be able to run the tests locally, you would need to have a MongoDB database up and running.  Assuming you have [docker](https://www.docker.com/) installed, this line should do the trick:
