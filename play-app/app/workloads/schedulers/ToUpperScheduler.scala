@@ -1,6 +1,5 @@
 package twita.whipsaw.app.workloads.schdulers
 
-import akka.NotUsed
 import akka.stream.scaladsl.Source
 import play.api.libs.json.Json
 import twita.whipsaw.api.workloads.Scheduler

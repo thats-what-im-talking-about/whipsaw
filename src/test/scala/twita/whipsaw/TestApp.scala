@@ -130,8 +130,10 @@ object TestApp {
         extends MongoWorkloadRegistryEntry
         with SampleRegistryEntry {
       lazy val metadata = Metadata(
-        new TestApp.SampleWorkloadScheduler(_: TestApp.SampleSchedulerParams),
-        new TestApp.SampleProcessorWithDelay(_: TestApp.SampleProcessorParams),
+        (sparams: TestApp.SampleSchedulerParams) =>
+          Future.successful(new TestApp.SampleWorkloadScheduler(sparams)),
+        (pparams: TestApp.SampleProcessorParams) =>
+          Future.successful(new TestApp.SampleProcessorWithDelay(pparams)),
         Seq("email"),
         entryName
       )

@@ -29,33 +29,43 @@ trait AppRegistry {
   implicit def actorSystem: ActorSystem
   def registeredWorkloads: RegisteredWorkloads
 
-  val workloadDirector: Director = new LocalDirector(AppRegistryEntry, registeredWorkloads)
+  val workloadDirector: Director =
+    new LocalDirector(AppRegistryEntry, registeredWorkloads)
 
   sealed trait AppRegistryEntry extends WorkloadRegistryEntry with EnumEntry
 
   object AppRegistryEntry extends Enum[AppRegistryEntry] with WorkloadRegistry {
     val values = findValues
 
-    override def apply(rw: RegisteredWorkload)(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] = {
+    override def apply(rw: RegisteredWorkload)(
+      implicit executionContext: ExecutionContext
+    ): Future[Workload[_, _, _]] = {
       AppRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
     }
 
-    override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](md: Metadata[Payload, SParams, PParams])(
+    override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](
+      md: Metadata[Payload, SParams, PParams]
+    )(
       implicit executionContext: ExecutionContext
-    ): WorkloadFactory[Payload, SParams, PParams] = values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
+    ): WorkloadFactory[Payload, SParams, PParams] =
+      values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
 
-    case object Sample extends MongoWorkloadRegistryEntry with AppRegistryEntry {
+    case object Sample
+        extends MongoWorkloadRegistryEntry
+        with AppRegistryEntry {
       lazy val metadata = MetadataRegistry.sample
-      lazy val factory: WorkloadFactory[_,_,_] = factoryForMetadata(metadata)
+      lazy val factory: WorkloadFactory[_, _, _] = factoryForMetadata(metadata)
     }
   }
 }
 
 object MetadataRegistry {
   val sample = Metadata(
-      new ToUpperScheduler(_: ItemCountParams)
-    , new AppenderToUpperProcessor(_: AppenderParams)
-    , Seq("email")
-    , "Sample"
+    (sparams: ItemCountParams) =>
+      Future.successful(new ToUpperScheduler(sparams)),
+    (pparams: AppenderParams) =>
+      Future.successful(new AppenderToUpperProcessor(pparams)),
+    Seq("email"),
+    "Sample"
   )
 }

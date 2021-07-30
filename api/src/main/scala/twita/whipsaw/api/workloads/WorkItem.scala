@@ -113,7 +113,8 @@ trait WorkItem[Payload] extends DomainObject[EventId, WorkItem[Payload]] {
   def process()(implicit ec: ExecutionContext): Future[ItemResult] =
     for {
       _ <- this(StartedProcessing())
-      (processingResult, updatedPayload) <- workload.processor.process(payload)
+      retrievedProcessor <- workload.processor
+      (processingResult, updatedPayload) <- retrievedProcessor.process(payload)
       (finalResult, _) <- processingResult match {
         case Done =>
           this(FinishedProcessing(updatedPayload, processingResult))

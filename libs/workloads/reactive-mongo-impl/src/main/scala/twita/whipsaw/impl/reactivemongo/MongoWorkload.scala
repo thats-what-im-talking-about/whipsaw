@@ -90,10 +90,10 @@ class MongoWorkload[Payload: OFormat, SParams: OFormat, PParams: OFormat](
 
   override def workItems: WorkItems[Payload] = new MongoWorkItems[Payload](this)
 
-  override def scheduler: Scheduler[Payload] =
+  override def scheduler: Future[Scheduler[Payload]] =
     metadata.scheduler(obj.schedulerParams)
 
-  override def processor: Processor[Payload] =
+  override def processor: Future[Processor[Payload]] =
     metadata.processor(obj.processorParams)
 
   override def schedulingStatus: SchedulingStatus = obj.schedulingStatus

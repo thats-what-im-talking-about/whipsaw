@@ -4,12 +4,8 @@ import java.time.Instant
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.actor.Props
 import akka.stream.ActorMaterializer
-import akka.stream.KillSwitches
 import akka.stream.Materializer
-import akka.stream.UniqueKillSwitch
-import akka.stream.scaladsl.Keep
 import akka.stream.scaladsl.MergeHub
 import akka.stream.scaladsl.Sink
 import akka.stream.scaladsl.Source
@@ -36,9 +32,7 @@ import twita.whipsaw.api.workloads.WorkItems
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadId
 import twita.whipsaw.monitor.WorkloadStatistics
-import twita.whipsaw.monitor.WorkloadStatsTracker
 
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.util.Failure
@@ -67,8 +61,8 @@ class TestWorkItem(nid: Int) extends WorkItem[P] {
 class TestWorkload(nid: Int) extends Workload[P, P, P] {
   override def name: String = ???
   override def workItems: WorkItems[P] = ???
-  override def scheduler: Scheduler[P] = ???
-  override def processor: Processor[P] = ???
+  override def scheduler: Future[Scheduler[P]] = ???
+  override def processor: Future[Processor[P]] = ???
   override def metadata: Metadata[P, P, P] = ???
   override def schedulingStatus: SchedulingStatus = ???
   override def processingStatus: ProcessingStatus = ???

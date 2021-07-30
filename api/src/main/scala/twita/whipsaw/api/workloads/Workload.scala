@@ -66,23 +66,24 @@ trait WorkloadContext
 
 /**
   * Defines the contracts for describing a generic Payload in this system.  A Workload has 3 different parts that
-  * need to be known in order for the Workload to run:
+  * need to be known in order for the [[Workload]] to run:
   * <ul>
   *   <li>
-  *     A Workload Scheduler will be used as the source for all of the WorkItems that need to be processed
-  *     by this Workload.  When the engine first picks up the Workload, it will invoke the scheduler and add the
-  *     resulting WorkItems to the collection of items that are to be managed by this workload.
+  *     A Workload [[Scheduler]] will be used as the source for all of the [[WorkItems]] that need to be processed
+  *     by this Workload.  When the engine first picks up the [[Workload]], it will invoke the [[Scheduler]] and add the
+  *     resulting [[WorkItem]]s to the collection of items that are to be managed by this [[Workload]].
   *   </li>
   *   <li>
-  *     A WorkItem list will be stored by this workload, and as the processing happens the WorkItems will be updated
-  *     to reflect the current state of the item.  Most notably, all WorkItems will have a {{runAt}} parameter which
-  *     gives a time that this WorkItem may be run.  This gives us a way to tell which WorkItems are due to be run
-  *     and it gives us a way to delay the processing of a single item to a later time.
+  *     A [[WorkItem]] list will be stored by this [[Workload]], and as the processing happens the [[WorkItem]]s
+  *     will be updated to reflect the current state of the item.  Most notably, all [[WorkItem]]s will have
+  *     a [[WorkItem.runAt]] parameter which gives a time that this WorkItem may be run.  This gives us a way to
+  *     tell which WorkItems are due to be run and it gives us a way to delay the processing of a single item
+  *     to a later time.
   *   </li>
   *   <li>
-  *     A WorkItemProcessor will also be bound to this workflow and it will provide us with the knowledge of how to
-  *     process each item in the Workload.  The WorkItemProcessor's job will be to do as much as can be done to the
-  *     WorkItem as possible - processing it to completion, error, or delay.
+  *     A WorkItem [[Processor]] will also be bound to this workflow and it will provide us with the knowledge of how to
+  *     process each item in the [[Workload]].  The [[Processor]]'s job will be to do as much as can be done to the
+  *     [[WorkItem]] as possible - processing it to completion, error, or delay.
   *   </li>
   * <ul>
   *
@@ -102,8 +103,8 @@ trait Workload[Payload, SParams, PParams]
   def name: String
 
   def workItems: WorkItems[Payload]
-  def scheduler: Scheduler[Payload]
-  def processor: Processor[Payload]
+  def scheduler: Future[Scheduler[Payload]]
+  def processor: Future[Processor[Payload]]
   def metadata: Metadata[Payload, SParams, PParams]
   def schedulingStatus: SchedulingStatus
   def processingStatus: ProcessingStatus
@@ -121,7 +122,8 @@ trait Workload[Payload, SParams, PParams]
     statsTracker: ActorRef
   )(implicit ec: ExecutionContext, m: Materializer): Future[SchedulingStatus] =
     for {
-      payloadIterator <- scheduler.schedule()
+      retrievedScheduler <- scheduler
+      payloadIterator <- retrievedScheduler.schedule()
       source = payloadIterator
         .mapAsyncUnordered(10) { payload =>
           statsTracker ! WorkloadStatistics(scheduled = 1)
@@ -130,7 +132,7 @@ trait Workload[Payload, SParams, PParams]
             .map(Option(_))
             .recoverWith {
               case t: Throwable =>
-                scheduler.handleDuplicate(payload).map(_ => None)
+                retrievedScheduler.handleDuplicate(payload).map(_ => None)
             }
         }
       result <- source.run().map(_ => SchedulingStatus.Completed)
