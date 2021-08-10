@@ -16,17 +16,17 @@ import twita.whipsaw.monitor.WorkloadStatistics
 import scala.concurrent.Future
 
 /**
-  * A representation of a workload that lacks the ability to actually process the load.  The RegisteredWorkload is
-  * backed by the same database as the Workload trait, but does carry with it the Processor, Scheduler, and Payload
-  * type information.  This is useful to parts of the library and application who don't care what the specific
+  * A representation of a Workload that lacks the ability to actually process the load.  The RegisteredWorkload is
+  * backed by the same database as the Workload trait, but lacks the Processor, Scheduler, and Payload
+  * type information.  This is useful to parts of the library and application that don't care what the specific
   * types associated with a Workload are.  For example, the Director needs to know only that a Workload is due to
-  * be run, which is knowable via the {{RegisteredWorkload.stats.runAt}} value.
+  * be run, which only requires a check against the `stats.runAt` field here.
   *
   * The API does not make any assumptions about the implementation of Workloads vs. RegisteredWorkloads, but it
-  * should be noted that there is no exposed method for creating a {{RegisteredWorkload}} in this API.  It is
-  * therefore assumed that if a Workload is created (via the {{Workloads.apply(Workload.Created(...))}} call) that this
-  * workload would then be immediately retrievable by {{workloadId}} as a {{RegisteredWorkload}}.  In other words,
-  * {{Workloads}} and {{RegisteredWorkloads}} are different views into the same repository.
+  * should be noted that the API exposes no method for creating a RegisteredWorkload in this API.  It is
+  * therefore assumed that if a Workload is created (via the `Workloads.apply(Workload.Created(...))` call) that this
+  * Workload would then be immediately retrievable by `workloadId` as a RegisteredWorkload.  In other words,
+  * Workloads and RegisteredWorkloads are different views into the same repository.
   */
 trait RegisteredWorkload extends DomainObject[EventId, RegisteredWorkload] {
   override type AllowedEvent = RegisteredWorkload.Event
