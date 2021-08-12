@@ -14,25 +14,41 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 class LocalManager(
-    override val director: Director
-  , override val workload: Workload[_, _, _]
-)(implicit val executionContext: ExecutionContext, val actorSystem: ActorSystem) extends Manager {
+  override val director: Director,
+  override val workload: Workload[_, _, _]
+)(implicit val executionContext: ExecutionContext, val actorSystem: ActorSystem)
+    extends Manager {
   override def workers: Workers = new LocalWorkers
 }
 
-class LocalManagers(val director: Director)(implicit executionContext: ExecutionContext, actorSystem: ActorSystem) extends Managers {
+class WorkloadNotFound(id: WorkloadId)
+    extends RuntimeException(s"failed to find Workload for ${id}")
+
+class LocalManagers(val director: Director)(
+  implicit executionContext: ExecutionContext,
+  actorSystem: ActorSystem
+) extends Managers {
   private lazy val _managers = mutable.Map.empty[WorkloadId, Manager]
 
   override def forWorkload(workload: Workload[_, _, _]): Future[Manager] =
     Future.successful(new LocalManager(director, workload))
 
   override def forWorkloadId(workloadId: WorkloadId): Future[Manager] =
-    director.registeredWorkloads.get(DomainObjectGroup.byId(workloadId)).flatMap {
-      case Some(rw) => director.registry(rw).map(new LocalManager(director, _))
-      case _ => Future.failed(new IllegalStateException(s"WorkloadId not found: ${workloadId}"))
-    }
+    for {
+      rwOpt <- director.registeredWorkloads.get(
+        DomainObjectGroup.byId(workloadId)
+      )
+      wOpt <- rwOpt match {
+        case Some(rw) => director.registry(rw)
+        case None     => Future.successful(None)
+      }
+    } yield
+      wOpt
+        .map(w => new LocalManager(director, w))
+        .getOrElse(throw new WorkloadNotFound(workloadId))
 
-  override def lookup(workloadId: WorkloadId): Option[Manager] = _managers.get(workloadId)
+  override def lookup(workloadId: WorkloadId): Option[Manager] =
+    _managers.get(workloadId)
 
   /**
     * Adds a Manager instance to this Managers collection, and then "activates" the workload.  If there is already

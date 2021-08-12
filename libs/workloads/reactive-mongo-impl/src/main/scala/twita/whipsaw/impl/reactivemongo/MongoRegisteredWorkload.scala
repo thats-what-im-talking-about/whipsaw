@@ -36,13 +36,9 @@ abstract class MongoWorkloadRegistryEntry(
 ) {
   self: WorkloadRegistryEntry =>
 
-  override def forWorkloadId(
-    id: WorkloadId
-  )(implicit executionContext: ExecutionContext): Future[Workload[_, _, _]] =
-    factory.get(byId(id)).map {
-      case Some(w) => w
-      case None    => throw new RuntimeException("no can do")
-    }
+  override def forWorkloadId(id: WorkloadId)(
+    implicit executionContext: ExecutionContext
+  ): Future[Option[Workload[_, _, _]]] = factory.get(byId(id))
 
   override def factoryForMetadata[Payload: OFormat,
                                   SParams: OFormat,
@@ -50,7 +46,8 @@ abstract class MongoWorkloadRegistryEntry(
     md: Metadata[Payload, SParams, PParams]
   )(
     implicit executionContext: ExecutionContext
-  ): WorkloadFactory[Payload, SParams, PParams] = new MongoWorkloadFactory(md)
+  ): Option[WorkloadFactory[Payload, SParams, PParams]] =
+    Some(new MongoWorkloadFactory(md))
 }
 
 case class RegisteredWorkloadDoc(

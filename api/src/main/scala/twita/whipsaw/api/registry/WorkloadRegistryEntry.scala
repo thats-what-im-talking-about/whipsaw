@@ -44,11 +44,11 @@ trait WorkloadRegistryEntry {
     *
     * @param id The id of a Workload that has already been created in the system.
     * @param executionContext
-    * @return A Future to be completed by a {{Workload}} instance.
+    * @return A Future to be completed by the Workload that corresponds to the WorkloadId if one exists.
     */
   def forWorkloadId(id: WorkloadId)(
     implicit executionContext: ExecutionContext
-  ): Future[Workload[_, _, _]]
+  ): Future[Option[Workload[_, _, _]]]
 
   /**
     * Returns a WorkloadFactory given a Metadata instance.   Metadata instances are created by developers as they
@@ -66,11 +66,11 @@ trait WorkloadRegistryEntry {
     * @tparam SParams Parameters that need to be passed into the scheduler instance in order to materialize the list of
     *                 Payloads that are to be processed as a part of this {{Workload}}.
     * @tparam PParams Parameters that need to be passed into the processor instance in order to process the payloads.
-    * @return A {{WorkloadFactory}} with the generics statically known at the callpoint of this function.
+    * @return WorkloadFactory that corresponds to this Metadata instance, if one exists.
     */
   def factoryForMetadata[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     md: Metadata[Payload, SParams, PParams]
   )(
     implicit executionContext: ExecutionContext
-  ): WorkloadFactory[Payload, SParams, PParams]
+  ): Option[WorkloadFactory[Payload, SParams, PParams]]
 }

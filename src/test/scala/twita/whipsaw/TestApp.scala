@@ -115,7 +115,7 @@ object TestApp {
 
     override def apply(rw: RegisteredWorkload)(
       implicit executionContext: ExecutionContext
-    ): Future[Workload[_, _, _]] = {
+    ): Future[Option[Workload[_, _, _]]] = {
       SampleRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
     }
 
@@ -123,8 +123,8 @@ object TestApp {
       md: Metadata[Payload, SParams, PParams]
     )(
       implicit executionContext: ExecutionContext
-    ): WorkloadFactory[Payload, SParams, PParams] =
-      values.find(_.metadata == md).map(_.factoryForMetadata(md)).get
+    ): Option[WorkloadFactory[Payload, SParams, PParams]] =
+      values.find(_.metadata == md).flatMap(_.factoryForMetadata(md))
 
     case object Sample
         extends MongoWorkloadRegistryEntry
@@ -137,7 +137,8 @@ object TestApp {
         Seq("email"),
         entryName
       )
-      lazy val factory: WorkloadFactory[_, _, _] = factoryForMetadata(metadata)
+      lazy val factory: WorkloadFactory[_, _, _] =
+        factoryForMetadata(metadata).get
     }
   }
 }

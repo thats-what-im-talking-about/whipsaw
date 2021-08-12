@@ -17,20 +17,25 @@ import twita.whipsaw.monitor.MonitorActor
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
-
 case class LaunchWorkloadRequest(name: String, items: Int)
-object LaunchWorkloadRequest { implicit val fmt = Json.format[LaunchWorkloadRequest] }
+object LaunchWorkloadRequest {
+  implicit val fmt = Json.format[LaunchWorkloadRequest]
+}
 
-class HomeController(cc: ControllerComponents, workloadDirector: engine.Director)(
-  implicit assetsFinder: AssetsFinder, system: ActorSystem, mat: Materializer, executionContext: ExecutionContext
+class HomeController(cc: ControllerComponents,
+                     workloadDirector: engine.Director)(
+  implicit assetsFinder: AssetsFinder,
+  system: ActorSystem,
+  mat: Materializer,
+  executionContext: ExecutionContext
 ) extends AbstractController(cc) {
 
   /**
-   * Create an Action to render an HTML page with a welcome message.
-   * The configuration in the `routes` file means that this method
-   * will be called when the application receives a `GET` request with
-   * a path of `/`.
-   */
+    * Create an Action to render an HTML page with a welcome message.
+    * The configuration in the `routes` file means that this method
+    * will be called when the application receives a `GET` request with
+    * a path of `/`.
+    */
   def index = Action {
     Ok(views.html.index("Your new application is ready."))
   }
@@ -40,25 +45,38 @@ class HomeController(cc: ControllerComponents, workloadDirector: engine.Director
   }
 
   def websocket = WebSocket.accept[String, String] { implicit req =>
-    ActorFlow.actorRef { out => MonitorActor.props(workloadDirector, out) }
+    ActorFlow.actorRef { out =>
+      MonitorActor.props(workloadDirector, out)
+    }
   }
 
   def launchWorkload = Action.async(cc.parsers.json) { implicit req =>
-    req.body.validate[LaunchWorkloadRequest].fold(
-        invalid => Future.successful(BadRequest(invalid.toString))
-      , parsed => {
-          val factory = workloadDirector.registry(MetadataRegistry.sample)
+    req.body
+      .validate[LaunchWorkloadRequest]
+      .fold(
+        invalid => Future.successful(BadRequest(invalid.toString)),
+        parsed => {
+          val factory = workloadDirector.registry(MetadataRegistry.sample).get
           for {
-            workload <- factory(factory.Created(parsed.name, ItemCountParams(parsed.items), AppenderParams("PrOcEsSeD")))
+            workload <- factory(
+              factory.Created(
+                parsed.name,
+                ItemCountParams(parsed.items),
+                AppenderParams("PrOcEsSeD")
+              )
+            )
           } yield Ok(Json.toJson(workload.id))
         }
-    )
+      )
   }
 
   def start(numItems: Int, name: String) = Action.async { implicit request =>
-    val factory = workloadDirector.registry(MetadataRegistry.sample)
+    val factory = workloadDirector.registry(MetadataRegistry.sample).get
     for {
-      workload <- factory(factory.Created(name, ItemCountParams(numItems), AppenderParams("PrOcEsSeD")))
+      workload <- factory(
+        factory
+          .Created(name, ItemCountParams(numItems), AppenderParams("PrOcEsSeD"))
+      )
     } yield Ok(Json.toJson(workload.id))
   }
 }
