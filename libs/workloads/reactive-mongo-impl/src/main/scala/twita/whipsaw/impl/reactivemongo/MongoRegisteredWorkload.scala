@@ -31,25 +31,35 @@ import twita.whipsaw.monitor.WorkloadStatistics
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
+/**
+ * Provides registry entry functionality for a MongoDB-backed `WorkloadRegistry`.
+ */
 abstract class MongoWorkloadRegistryEntry(
   implicit mongoContext: MongoContext with WorkloadContext
-) {
-  self: WorkloadRegistryEntry =>
+) extends WorkloadRegistryEntry {
 
   override def forWorkloadId(id: WorkloadId)(
     implicit executionContext: ExecutionContext
   ): Future[Option[Workload[_, _, _]]] = factory.get(byId(id))
 
-  override def factoryForMetadata[Payload: OFormat,
-                                  SParams: OFormat,
-                                  PParams: OFormat](
+  override def factoryForMetadata[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     md: Metadata[Payload, SParams, PParams]
   )(
     implicit executionContext: ExecutionContext
-  ): Option[WorkloadFactory[Payload, SParams, PParams]] =
-    Some(new MongoWorkloadFactory(md))
+  ): WorkloadFactory[Payload, SParams, PParams] = new MongoWorkloadFactory(md)
 }
 
+/**
+ * Document format for a `RegisteredWorkload` in a Mongo-based `WorkloadRegistry`
+ *
+ * @param _id
+ * @param factoryType
+ * @param schedulingStatus
+ * @param processingStatus
+ * @param stats Structure that contains the current statistics for this `Workload`.
+ * @param appAttrs JSON structure that is used to store application-specific attributes that are attached to a
+ *                 `Workload` at the time it is first created.
+ */
 case class RegisteredWorkloadDoc(
   _id: WorkloadId,
   factoryType: String,
@@ -63,29 +73,34 @@ object RegisteredWorkloadDoc {
   implicit val fmt = Json.format[RegisteredWorkloadDoc]
 }
 
+/**
+ * Shared information that is needed by both the domain object instance, `MongoRegisteredWorklaod` and the domain
+ * object group, `MongoRegisteredWorkloads`.
+ */
 trait RegisteredWorkloadDescriptor
     extends ObjectDescriptor[EventId, RegisteredWorkload, RegisteredWorkloadDoc] {
   implicit def mongoContext: MongoContext
 
   override protected lazy val collectionName = "workloads"
-  override protected def cons
-    : Either[Empty[WorkloadId], RegisteredWorkloadDoc] => RegisteredWorkload = {
-    o =>
-      new MongoRegisteredWorkload(o)
-  }
+  override protected def cons: Either[Empty[WorkloadId], RegisteredWorkloadDoc] => RegisteredWorkload =
+    o => new MongoRegisteredWorkload(o)
 }
 
+/**
+ * Provides the `RegisteredWorkload` implementation for a MongoDB-backed workload system.
+ *
+ * @param underlying Underlying document (or an Empty instance if the document has been deleted).
+ * @param executionContext
+ * @param mongoContext
+ */
 class MongoRegisteredWorkload(
   protected val underlying: Either[Empty[WorkloadId], RegisteredWorkloadDoc]
 )(implicit executionContext: ExecutionContext,
-  override val mongoContext: MongoContext)
-    extends ReactiveMongoObject[
-      EventId,
-      RegisteredWorkload,
-      RegisteredWorkloadDoc
-    ]
-    with RegisteredWorkloadDescriptor
-    with RegisteredWorkload {
+  override val mongoContext: MongoContext
+) extends ReactiveMongoObject[EventId, RegisteredWorkload, RegisteredWorkloadDoc]
+  with RegisteredWorkloadDescriptor
+  with RegisteredWorkload
+{
   override def stats: WorkloadStatistics = obj.stats
   override def schedulingStatus: SchedulingStatus = obj.schedulingStatus
   override def processingStatus: ProcessingStatus = obj.processingStatus
@@ -104,24 +119,23 @@ class MongoRegisteredWorkload(
   }
 }
 
-class MongoRegisteredWorkloads()(implicit executionContext: ExecutionContext,
-                                 val mongoContext: MongoContext)
-    extends ReactiveMongoDomainObjectGroup[
-      EventId,
-      RegisteredWorkload,
-      RegisteredWorkloadDoc
-    ]
-    with RegisteredWorkloadDescriptor
-    with RegisteredWorkloads {
+/**
+ * Provides the domain object group implementation for a MongoDB-based `RegisteredWorkloads` instance.
+ * @param executionContext
+ * @param mongoContext
+ */
+class MongoRegisteredWorkloads()(implicit executionContext: ExecutionContext, val mongoContext: MongoContext)
+extends ReactiveMongoDomainObjectGroup[ EventId, RegisteredWorkload, RegisteredWorkloadDoc]
+  with RegisteredWorkloadDescriptor
+  with RegisteredWorkloads
+{
   override protected def listConstraint: JsObject = Json.obj()
 
   override def list(
     q: DomainObjectGroup.Query
   ): Future[List[RegisteredWorkload]] = q match {
     case attrs: RegisteredWorkloads.byAppAttrs =>
-      getListByJsonCrit(Json.obj(attrs.kvs.map {
-        case (k, v) => s"appAttrs.${k}" -> v
-      }: _*))
+      getListByJsonCrit(Json.obj(attrs.kvs.map { case (k, v) => s"appAttrs.${k}" -> v }: _*))
   }
 
   override def getRunnable: Future[List[RegisteredWorkload]] =

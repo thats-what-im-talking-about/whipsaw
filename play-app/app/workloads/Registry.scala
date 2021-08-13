@@ -48,14 +48,14 @@ trait AppRegistry {
     )(
       implicit executionContext: ExecutionContext
     ): Option[WorkloadFactory[Payload, SParams, PParams]] =
-      values.find(_.metadata == md).flatMap(_.factoryForMetadata(md))
+      values.find(_.metadata == md).map(_.factoryForMetadata(md))
 
     case object Sample
         extends MongoWorkloadRegistryEntry
         with AppRegistryEntry {
       lazy val metadata = MetadataRegistry.sample
       lazy val factory
-        : WorkloadFactory[_, _, _] = factoryForMetadata(metadata).get
+        : WorkloadFactory[_, _, _] = factoryForMetadata(metadata)
     }
   }
 }

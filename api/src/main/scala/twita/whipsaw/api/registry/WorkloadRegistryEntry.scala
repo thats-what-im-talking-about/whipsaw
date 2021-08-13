@@ -54,23 +54,23 @@ trait WorkloadRegistryEntry {
     * Returns a WorkloadFactory given a Metadata instance.   Metadata instances are created by developers as they
     * code new types of Workload classes.  The Metadata instance that is created as part of the development process
     * should be created as a singleton that is accessible both in the application that will be originating new
-    * Workloads and in the Engine that will be materializing and executing the Workloads.  Unlike the
-    * [[WorkloadRegistryEntry.forWorkloadId()]], this method does in fact fill in the generic types for the Workload.
+    * Workloads and in the Engine that will be materializing and executing the Workloads.  Unlike
+    * `WorkloadRegistryEntry.forWorkloadId()`, this method does in fact fill in the generic types for the Workload.
     *
-    * @param md {{Metadata}} instance that we will use to look up the Workload factory.
+    * @param md `Metadata` instance that we will use to look up the Workload factory.
     * @param executionContext
     * @tparam Payload Arbitrary type that contains all of the information that is needed to process an individual
-    *                 {{WorkItem}}.  The Payload is what makes the item unique in this Workload.  For example, if we
-    *                 are creating a {{Workload}} that knows how to send email to a bunch of users, the Payload should
+    *                 `WorkItem`.  The Payload is what makes the item unique in this `Workload`.  For example, if we
+    *                 are creating a `Workload` that knows how to send email to a bunch of users, the Payload should
     *                 contain at the very least the email address of the user.
     * @tparam SParams Parameters that need to be passed into the scheduler instance in order to materialize the list of
-    *                 Payloads that are to be processed as a part of this {{Workload}}.
+    *                 Payloads that are to be processed as a part of this `Workload`.
     * @tparam PParams Parameters that need to be passed into the processor instance in order to process the payloads.
-    * @return WorkloadFactory that corresponds to this Metadata instance, if one exists.
+    * @return A `WorkloadFactory` that corresponds to the provided `Metadata` instance.
     */
   def factoryForMetadata[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     md: Metadata[Payload, SParams, PParams]
   )(
     implicit executionContext: ExecutionContext
-  ): Option[WorkloadFactory[Payload, SParams, PParams]]
+  ): WorkloadFactory[Payload, SParams, PParams]
 }

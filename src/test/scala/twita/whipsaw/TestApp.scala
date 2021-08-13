@@ -2,7 +2,6 @@ package twita.whipsaw
 
 import java.time.Instant
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
@@ -124,7 +123,7 @@ object TestApp {
     )(
       implicit executionContext: ExecutionContext
     ): Option[WorkloadFactory[Payload, SParams, PParams]] =
-      values.find(_.metadata == md).flatMap(_.factoryForMetadata(md))
+      values.find(_.metadata == md).map(_.factoryForMetadata(md))
 
     case object Sample
         extends MongoWorkloadRegistryEntry
@@ -138,7 +137,7 @@ object TestApp {
         entryName
       )
       lazy val factory: WorkloadFactory[_, _, _] =
-        factoryForMetadata(metadata).get
+        factoryForMetadata(metadata)
     }
   }
 }
