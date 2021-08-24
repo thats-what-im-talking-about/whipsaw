@@ -4,7 +4,6 @@ import akka.stream.Materializer
 import twita.whipsaw.api.registry.RegisteredWorkload
 import twita.whipsaw.api.registry.RegisteredWorkloads
 import twita.whipsaw.api.registry.WorkloadRegistry
-import twita.whipsaw.api.workloads.Workload
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -52,20 +51,11 @@ trait Director {
   def delegateRunnableWorkloads()(
     implicit m: Materializer
   ): Future[List[RegisteredWorkload]] = {
-    def collectWorkloadsAndLogUnfound(
-      workloads: List[(RegisteredWorkload, Option[Workload[_, _, _]])]
-    ): List[Workload[_, _, _]] = {
-      val (found, notFound) = workloads.partition { case (_, w) => w.isDefined }
-      // TODO: Report to someone that a RegisteredWorkload was not able to be turned into a Workload.
-      notFound.foreach { case (rw, _)   => /* report it */ }
-      found.collect { case (_, Some(w)) => w }
-    }
     // TODO: Future.traverse won't work at large scale.  Come back through and Akka Stream this later.
     for {
       listToRun <- registeredWorkloads.getRunnable
-      runnables <- Future
-        .traverse(listToRun)(rw => registry.apply(rw).map(rw -> _))
-        .map(collectWorkloadsAndLogUnfound)
+      runnables <- Future.traverse(listToRun)(rw =>
+        registry.apply(rw).map(_.fold(err => /* log it */ None, wl => Some(wl)))).map(_.flatten)
       managerSeq <- Future.traverse(runnables)(managers.forWorkload)
       processed <- Future.traverse(managerSeq) { manager =>
         managers.activate(manager).flatMap { mgr =>

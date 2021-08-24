@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import enumeratum._
 import play.api.libs.json.OFormat
 import twita.dominion.impl.reactivemongo.MongoContext
+import twita.whipsaw.api.WorkloadError
 import twita.whipsaw.api.engine.Director
 import twita.whipsaw.api.registry.RegisteredWorkload
 import twita.whipsaw.api.registry.RegisteredWorkloads
@@ -39,16 +40,23 @@ trait AppRegistry {
 
     override def apply(rw: RegisteredWorkload)(
       implicit executionContext: ExecutionContext
-    ): Future[Option[Workload[_, _, _]]] = {
+    ): Future[Either[WorkloadError, Workload[_, _, _]]] = {
       AppRegistryEntry.withName(rw.factoryType).forWorkloadId(rw.id)
+        .map {
+          case None => Left(WorkloadError(s"Failed to map RegisteredWorkload ${rw.id} to a Workload[_, _, _]."))
+          case Some(w) => Right(w)
+        }
     }
 
     override def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](
       md: Metadata[Payload, SParams, PParams]
     )(
       implicit executionContext: ExecutionContext
-    ): Option[WorkloadFactory[Payload, SParams, PParams]] =
-      values.find(_.metadata == md).map(_.factoryForMetadata(md))
+    ): Either[WorkloadError, WorkloadFactory[Payload, SParams, PParams]] =
+      values.find(_.metadata == md).map(_.factoryForMetadata(md)) match {
+        case None => Left(WorkloadError(s"Failed to map Metadata ${md.factoryType} to a Workload[_, _, _]."))
+        case Some(factory) => Right(factory)
+      }
 
     case object Sample
         extends MongoWorkloadRegistryEntry

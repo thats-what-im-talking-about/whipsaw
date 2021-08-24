@@ -56,27 +56,28 @@ class HomeController(cc: ControllerComponents,
       .fold(
         invalid => Future.successful(BadRequest(invalid.toString)),
         parsed => {
-          val factory = workloadDirector.registry(MetadataRegistry.sample).get
+          val factory = workloadDirector.registry(MetadataRegistry.sample)
           for {
-            workload <- factory(
-              factory.Created(
+            workload <- factory match {
+              case Right(f) => f.apply(f.Created(
                 parsed.name,
                 ItemCountParams(parsed.items),
                 AppenderParams("PrOcEsSeD")
-              )
-            )
+              ))
+              case Left(err) => Future.failed(new RuntimeException(err.msg))
+            }
           } yield Ok(Json.toJson(workload.id))
         }
       )
   }
 
   def start(numItems: Int, name: String) = Action.async { implicit request =>
-    val factory = workloadDirector.registry(MetadataRegistry.sample).get
+    val factory = workloadDirector.registry(MetadataRegistry.sample)
     for {
-      workload <- factory(
-        factory
-          .Created(name, ItemCountParams(numItems), AppenderParams("PrOcEsSeD"))
-      )
+      workload <- factory match {
+        case Right(f) => f(f.Created(name, ItemCountParams (numItems), AppenderParams ("PrOcEsSeD")))
+        case Left(err) => Future.failed(new RuntimeException(err.msg))
+      }
     } yield Ok(Json.toJson(workload.id))
   }
 }

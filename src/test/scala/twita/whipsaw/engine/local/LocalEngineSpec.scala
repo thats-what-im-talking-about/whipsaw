@@ -25,7 +25,8 @@ class LocalEngineSpec extends AsyncFlatSpec with should.Matchers {
     new MongoRegisteredWorkloads()
   )
   val workloadFactory =
-    director.registry(TestApp.SampleRegistryEntry.Sample.metadata).get
+    director.registry(TestApp.SampleRegistryEntry.Sample.metadata)
+      .getOrElse(throw new RuntimeException("Something went terribly wrong"))
   var workloadId: WorkloadId = _
 
   "workloads" should "be created" in {

@@ -1,6 +1,7 @@
 package twita.whipsaw.api.registry
 
 import play.api.libs.json.OFormat
+import twita.whipsaw.api.WorkloadError
 import twita.whipsaw.api.workloads.Metadata
 import twita.whipsaw.api.workloads.Workload
 import twita.whipsaw.api.workloads.WorkloadFactory
@@ -29,11 +30,15 @@ trait WorkloadRegistry {
     *           Typically `RegisteredWorkload` instances are obtained from the `Director`'s `RegisteredWorkload`
     *           repository.
     * @param executionContext
-    * @return A `Future` which will be completed with a `Workload` object if one exists.
+    * @return A `Future` which will be completed either with a `Right(Workload)` instance or a `Left(WorkloadError)`
+    *         if there is some error or if the `Workload` wasn't found.  Note that this could have been implemented
+    *         as an `Option` instead of an `Either`, but the fact is that if you have a valid instance of a
+    *         `RegisteredWorkload`, you should always be able to get an instance of `Workload[_, _, _]` so making this
+    *         an `Either` is a stronger statement that not finding the `Workload` is indeed an error.
     */
   def apply(rw: RegisteredWorkload)(
     implicit executionContext: ExecutionContext
-  ): Future[Option[Workload[_, _, _]]]
+  ): Future[Either[WorkloadError, Workload[_, _, _]]]
 
   /**
     * @param md Metadata instance that describes a `Workload` that has been defined for this system.
@@ -42,12 +47,15 @@ trait WorkloadRegistry {
     * @tparam SParams The parameters that will be used to configure a `Scheduler`
     * @tparam PParams The parameters that will be used to configure a `Processor`
     *
-    * @return A `WorkloadFactory` that may be used to create new instances of this type of `Workload`, if one exists
-    *         for the provided `Metadata`.
+    * @return A `Future` which will be completed either with a `Right(Workload)` instance or a `Left(WorkloadError)`
+    *         if there is some error or if the `Workload` wasn't found.  Note that this could have been implemented
+    *         as an `Option` instead of an `Either`, but the fact is that if you have a valid Metadata instance
+    *         you should always be able to get an instance of `Workload[_, _, _]` so making this
+    *         an `Either` is a stronger statement that not finding the `Workload` is indeed an error.
     */
   def apply[Payload: OFormat, SParams: OFormat, PParams: OFormat](
     md: Metadata[Payload, SParams, PParams]
   )(
     implicit executionContext: ExecutionContext
-  ): Option[WorkloadFactory[Payload, SParams, PParams]]
+  ): Either[WorkloadError, WorkloadFactory[Payload, SParams, PParams]]
 }

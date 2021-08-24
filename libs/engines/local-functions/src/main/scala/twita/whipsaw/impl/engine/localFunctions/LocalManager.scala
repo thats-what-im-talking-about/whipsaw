@@ -39,7 +39,7 @@ class LocalManagers(val director: Director)(
         DomainObjectGroup.byId(workloadId)
       )
       wOpt <- rwOpt match {
-        case Some(rw) => director.registry(rw)
+        case Some(rw) => director.registry(rw).map(_.toOption)
         case None     => Future.successful(None)
       }
     } yield
