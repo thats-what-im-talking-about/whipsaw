@@ -91,7 +91,7 @@ trait Manager {
 
     def delayedFetch(o: Option[WorkItem[_]], forSeconds: Long) = {
       forSeconds match {
-        case soon if soon < 5 =>
+        case soon if soon <= 10 =>
           println(
             s"sleeping for ${soon + 1}s, the next work item is almost ready!"
           )
@@ -103,21 +103,24 @@ trait Manager {
       }
     }
 
-    val runnableItemSource = Source
-      .unfoldAsync(None: Option[WorkItem[_]])(
-        o =>
-          wl.workItems.nextRunnable.flatMap {
-            case Some(nextUp) => Future.successful(Some(o -> nextUp))
-            case None =>
-              wl.workItems.nextRunAt.flatMap {
-                case None => delayedFetch(o, 0)
-                case Some(nextRunAt) =>
-                  val sUntilNext =
-                    nextRunAt.getEpochSecond() - Instant.now.getEpochSecond
-                  delayedFetch(o, sUntilNext)
-              }
-        }
-      )
+    def nextUp(retries: Int)(state: Option[WorkItem[_]]): Future[Option[(Option[WorkItem[_]], WorkItem[_])]] =
+      wl.workItems.nextRunnable.flatMap {
+        case Some(nextUp) => Future.successful(Some(state -> nextUp))
+        case None =>
+          wl.workItems.nextRunAt.flatMap {
+            case None if !scheduledItemsFt.isCompleted && retries < 10 =>
+              Thread.sleep(2000)
+              println(s"no items to run, but scheduler is still running, trying again (this makes ${retries+1} times)")
+              nextUp(retries + 1)(state)
+            case None => delayedFetch(state, 0)
+            case Some(nextRunAt) =>
+              val sUntilNext =
+                nextRunAt.getEpochSecond() - Instant.now.getEpochSecond
+              delayedFetch(state, sUntilNext)
+          }
+      }
+
+    val runnableItemSource = Source.unfoldAsync(None: Option[WorkItem[_]])(nextUp(0))
 
     val processingStatusFt = workload.processingStatus match {
       case ProcessingStatus.Completed =>
@@ -126,7 +129,7 @@ trait Manager {
         for {
           _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
           graph = new WorkloadExecutionGraph(this, runnableItemSource)
-          _ = setWorkerPoolSize(50)
+          _ = setWorkerPoolSize(100)
           result <- graph.workSource.runFold(0) {
             case (result, _) => result + 1
           }
