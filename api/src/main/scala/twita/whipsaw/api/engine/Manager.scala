@@ -75,6 +75,7 @@ trait Manager {
 
     val wl = workload // transforms workload into a val, fixes compiler error
 
+    // TODO(bplawler): Flat map this result onto the rest of the workload execution (rather than await it)
     val initialized = Await.result(wl.workItems.initialize, 2.second)
 
     val scheduledItemsFt = workload.schedulingStatus match {
@@ -102,7 +103,7 @@ trait Manager {
       }
     }
 
-    val runnableItems = Source
+    val runnableItemSource = Source
       .unfoldAsync(None: Option[WorkItem[_]])(
         o =>
           wl.workItems.nextRunnable.flatMap {
@@ -124,7 +125,7 @@ trait Manager {
       case _ =>
         for {
           _ <- wl(wl.ProcessingStatusUpdated(ProcessingStatus.Running))
-          graph = new WorkloadExecutionGraph(this, runnableItems)
+          graph = new WorkloadExecutionGraph(this, runnableItemSource)
           _ = setWorkerPoolSize(50)
           result <- graph.workSource.runFold(0) {
             case (result, _) => result + 1

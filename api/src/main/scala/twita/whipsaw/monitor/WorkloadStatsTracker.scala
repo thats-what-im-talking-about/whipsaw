@@ -1,7 +1,6 @@
 package twita.whipsaw.monitor
 
 import java.time.Instant
-
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorRef
@@ -18,128 +17,95 @@ import twita.whipsaw.monitor.WorkloadStatsTracker.TakeMeasurement
 
 import scala.concurrent.duration._
 
+case class WorkloadStatsState(
+  workloadStatistics: WorkloadStatistics = WorkloadStatistics(),
+  probes: Map[WorkloadId, ActorRef] = Map.empty,
+  count: Int = 0,
+  workerFactory: Option[ActorRef] = None,
+  saveTimer: Option[Cancellable] = None,
+  taskTimer: Option[Cancellable] = None
+)
+
 class WorkloadStatsTracker(manager: Manager) extends Actor with ActorLogging {
   implicit val executionContext = context.dispatcher
 
-  override def preStart(): Unit =
+  override def preStart(): Unit = {
     log.info(s"Starting up stats tracker for ${manager.workload.id}")
-  context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
+    context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
+  }
 
-  override def receive: Receive =
-    activated(WorkloadStatistics(), Map.empty, 0, None, None, None)
+  override def receive: Receive = activated(WorkloadStatsState())
 
   val wl = manager.workload
 
-  def activated(workloadStatistics: WorkloadStatistics,
-                probes: Map[WorkloadId, ActorRef],
-                count: Int,
-                workerFactory: Option[ActorRef],
-                saveTimer: Option[Cancellable],
-                taskTimer: Option[Cancellable]): Receive = {
+  def activated(state: WorkloadStatsState): Receive = {
 
-    // Update stats, start a timer if one is not set.
+    // Sent whenever there is a stats update.  This handler jus does an in memory update of the workload stats
+    // and schedules those stats to be saved in 1 second (if the scheduling has not already happened).
     case updateStats: WorkloadStatistics =>
-      val newSaveTimer = saveTimer.fold(
+      val newSaveTimer = state.saveTimer.fold(
         context.system.scheduler.scheduleOnce(1.second, self, SaveStats)
       )(t => t)
       context.become(
-        activated(
-          workloadStatistics(updateStats),
-          probes,
-          count + Math.max(0, updateStats.running.toInt),
-          workerFactory,
-          Some(newSaveTimer),
-          taskTimer
-        )
+        activated(state.copy(
+          workloadStatistics = state.workloadStatistics(updateStats),
+          count = state.count + Math.max(0, updateStats.running.toInt),
+          saveTimer = Some(newSaveTimer),
+        ))
       )
 
+    // Measurements are taken periodically and saved into the WorkloadStatistics object.  We count the number
+    // of items that have been processed divided by the number of milliseconds since the beginning of the
+    // monitoring period.  Then we reset the timer and reset the counter back to zero.
     case TakeMeasurement(startTime) =>
-      val itemsPerSec =
-        count * 1000.0 / (System.currentTimeMillis() - startTime)
-      val newTaskTimer =
-        context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
-      context.become(
-        activated(
-          workloadStatistics.copy(itemsPerSec = Some(itemsPerSec)),
-          probes,
-          0,
-          workerFactory,
-          saveTimer,
-          Some(newTaskTimer)
-        )
-      )
+      val itemsPerSec = state.count * 1000.0 / (System.currentTimeMillis() - startTime)
+      val newTaskTimer = context.system.scheduler.scheduleOnce(1.second, self, TakeMeasurement())
+      context.become(activated(state.copy(
+        workloadStatistics = state.workloadStatistics.copy(itemsPerSec = Some(itemsPerSec)),
+        count = 0,
+        taskTimer = Some(newTaskTimer)
+      )))
 
     // Persist the WorkloadStats object into the workload
     case WorkloadStatsTracker.SaveStats =>
-      log.info(s"saving stats for workload ${workloadStatistics}")
-      probes.foreach { case (_, probe) => probe ! workloadStatistics }
-      wl(wl.StatsUpdated(workloadStatistics)).map(_ => StatsSaved).to(self)
+      log.info(s"saving stats for workload ${state.workloadStatistics}")
+      state.probes.foreach { case (_, probe) => probe ! state.workloadStatistics }
+      wl(wl.StatsUpdated(state.workloadStatistics)).map(_ => StatsSaved).to(self)
 
+    // Upon completion of saving the stats, we clean up that timer as well as the state of the stats tracker.
     case StatsSaved =>
-      saveTimer.foreach(_.cancel())
-      context.become(
-        activated(
-          workloadStatistics,
-          probes,
-          count,
-          workerFactory,
-          None,
-          taskTimer
-        )
-      )
+      state.saveTimer.foreach(_.cancel())
+      context.become(activated(state.copy(saveTimer = None)))
 
+    // Probes use this message to announce to the workload that they are interested in getting the stats updates.
     case WorkloadStatsTracker.AddProbe(workloadId, probe) =>
-      context.become(
-        activated(
-          workloadStatistics,
-          probes + (workloadId -> probe),
-          count,
-          workerFactory,
-          saveTimer,
-          taskTimer
-        )
-      )
+      context.become(activated(state.copy(probes = state.probes + (workloadId -> probe))))
 
+    // Adds the workerFactory to this stats tracker instance.  The worker factory is the actor that lives in
+    // the Workload execution graph and is responsible for managing the worker slots that actually do the
+    // work.  We need the worker factory here so that there we have an actor to send `maxWorkers` settings to
+    // for this Workload.
     case SetWorkerFactory(workerFactory) =>
       log.info("Received a worker factory")
-      self ! WorkerFactoryActor.SetWorkerPoolSize(
-        workloadStatistics.maxWorkers.getOrElse(0)
-      )
-      context.become(
-        activated(
-          workloadStatistics,
-          probes,
-          count,
-          Some(workerFactory),
-          saveTimer,
-          taskTimer
-        )
-      )
+      self ! WorkerFactoryActor.SetWorkerPoolSize(state.workloadStatistics.maxWorkers.getOrElse(0))
+      context.become(activated(state.copy(workerFactory = Some(workerFactory))))
 
+    // Sets the pool size on the worker factory and saves it in the state.
     case setPoolSize: WorkerFactoryActor.SetWorkerPoolSize =>
-      log.info(
-        s"setting the pool size to ${setPoolSize.to}, have a worker factory? ${workerFactory.isDefined}"
-      )
-      workerFactory.foreach(_ ! setPoolSize)
+      log.info(s"setting the pool size to ${setPoolSize.to}, have a worker factory? ${state.workerFactory.isDefined}")
+      state.workerFactory.foreach(_ ! setPoolSize)
       self ! WorkloadStatsTracker.SaveStats
-      context.become(
-        activated(
-          workloadStatistics.copy(maxWorkers = Some(setPoolSize.to)),
-          probes,
-          count,
-          workerFactory,
-          saveTimer,
-          taskTimer
-        )
-      )
+      context.become(activated(state.copy(
+        workloadStatistics = state.workloadStatistics.copy(maxWorkers = Some(setPoolSize.to))
+      )))
 
     case WorkloadStatsTracker.Deactivate(nextRunAt) =>
       self ! WorkloadStatsTracker.SaveStats
-      probes.foreach { case (_, probe) => probe ! Probe.Deactivate }
-      saveTimer.foreach(_.cancel())
-      taskTimer.foreach(_.cancel())
+      state.probes.foreach { case (_, probe) => probe ! Probe.Deactivate }
+      state.saveTimer.foreach(_.cancel())
+      state.taskTimer.foreach(_.cancel())
       context.become(
-        deactivating(workloadStatistics(WorkloadStatistics(runAt = nextRunAt)))
+        deactivating(state.workloadStatistics(WorkloadStatistics(runAt = nextRunAt)))
       )
   }
 
