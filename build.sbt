@@ -13,6 +13,17 @@ scalacOptions in ThisBuild ++= Seq(
   //, "-Xfatal-warnings"
 )
 
+
+//
+//              G   I   T   H   U   B      
+//
+//      P   U   B   L   I   S   H   I   N   G
+//
+
+githubOwner in ThisBuild := "thats-what-im-talking-about"
+githubRepository in ThisBuild := "whipsaw"
+githubTokenSource in ThisBuild := TokenSource.GitConfig("github.token")
+
 libraryDependencies ++= Seq(
   "org.scalactic" %% "scalactic" % "3.2.0" % "test",
   "org.scalatest" %% "scalatest" % "3.2.0" % "test",
@@ -67,16 +78,16 @@ root / publish / skip := true
 //      P   U   B   L   I   S   H   I   N   G
 //
 
-inThisBuild(List(
-  organization := "io.github.thats-what-im-talking-about",
-  homepage := Some(url("http://gihub.com/thats-what-im-talking-about")),
-  licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
-  developers := List(
-    Developer(
-      "bplawler",
-      "Brian Lawler",
-      "bplawler@gmail.com",
-      url("https://github.com/bplawler")
-    )
-  )
-))
+//inThisBuild(List(
+  //organization := "io.github.thats-what-im-talking-about",
+  //homepage := Some(url("http://gihub.com/thats-what-im-talking-about")),
+  //licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  //developers := List(
+    //Developer(
+      //"bplawler",
+      //"Brian Lawler",
+      //"bplawler@gmail.com",
+      //url("https://github.com/bplawler")
+    //)
+  //)
+//))
