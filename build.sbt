@@ -28,7 +28,7 @@ dependencyOverrides in ThisBuild += "com.typesafe.akka" %% "akka-serialization-j
 
 // play-json 2.9.0 gets pulled in by default, but this causes a NoSuchMethod error when
 // running in Iterable.  Forcing this down to the min version.
-dependencyOverrides in ThisBuild += "com.typesafe.play" %% "play-json" % "2.7.4"
+dependencyOverrides in ThisBuild += "com.typesafe.play" %% "play-json" % "2.8.2"
 
 lazy val api = project in file("api")
 
